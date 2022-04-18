@@ -1,0 +1,149 @@
+#!/usr/bin/perl
+#------------------------------------------------------------------------
+#             _                     _    o  generate a daily archive page
+#  _  _  ___  )L, __   ___  __  __  ))_  _ __ _ __ __
+# ((`1( ((_( ((\ (('  ((_( (|  ((_ ((`( (( \(/'(('_))  by eric richardson
+#------------------------------------------------------------------------
+#  $Id: make_archives,v 1.1 2000/09/15 11:43:25 eric Exp $
+#
+#  make_archives: generate a daily archive page
+#  Copyright (C) 2000 Eric Richardson
+#
+#       This program is free software; you can redistribute it and/or
+#       modify it under the terms of the GNU General Public License
+#       as published by the Free Software Foundation; either version 2
+#       of the License, or (at your option) any later version.
+#
+#       This program is distributed in the hope that it will be useful,
+#       but WITHOUT ANY WARRANTY; without even the implied warranty of
+#       MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#       GNU General Public License for more details.
+#
+#       You should have received a copy of the GNU General Public License
+#       along with this program; if not, write to the Free Software
+#       Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  
+#       02111-1307, USA.
+#
+#  Generate an archive page of all stories published that day.
+#
+#------------------------------------------------------------------------
+
+use strict;
+use vars qw($db %cfg $core %stored);
+
+use eGold::core;
+use DBI;
+use Date::Format;
+
+#----------------#
+# Initialization #
+#----------------#
+
+$core = eGold::core->start("make_archives");
+
+die "Usage: ./make_archives (output file) (locale)\n" unless (@ARGV >= 1);
+($cfg{input}{file},$cfg{input}{locale}) = @ARGV;
+
+MAIN: {
+	my $locale_sql = "and article.locale = '$cfg{input}{locale}'"
+		if ($cfg{input}{locale});
+
+	my $get_story_details = $db->prepare("
+		select 
+			article.id,article.headline,article.subtitle,article.author,
+			article.locale,article.written,art_topic_lnk.topic_id
+		from article,art_topic_lnk,topic
+		where 
+			article.id = art_topic_lnk.article_id and 
+			article.state = 'PUBLISHED' and 
+			topic.topic_id = art_topic_lnk.topic_id
+			$locale_sql
+		order by article.written desc limit 10
+	");
+
+	my $get_topic_info = $db->prepare("
+		select description from topic where topic_id = ?
+	");
+
+	$get_story_details->execute();
+
+	my (%t,%s,$id,$headline,$subtitle,$author,$locale,$written,$t_id);
+	$get_story_details->bind_columns(
+		\$id,\$headline,\$subtitle,\$author,\$locale,\$written,\$t_id
+	);
+
+	while ($get_story_details->fetch) {
+		%{$s{$id}} = (
+			id			=> $id,
+			headline	=> $headline,
+			subtitle	=> $subtitle,
+			author		=> $author,
+			locale		=> $locale,
+			written		=> $written,
+			topic		=> $t_id,
+		);
+
+		if (!$t{$t_id}) {
+			$get_topic_info->execute($t_id);
+			$t{$t_id}{desc} = $get_topic_info->fetchrow_array;
+			$t{$t_id}{desc} = $t_id unless ($t{$t_id}{desc});
+		}
+
+		push @{$t{$t_id}{sorted}}, $id;
+	}
+
+	my $html = $core->get_template("archive.".$cfg{input}{locale});
+	my $tmp_html;
+
+	# process topics alphabetically
+	foreach my $topic (sort { $a cmp $b } (keys %t)) {
+		my $tthtml;
+		my $thtml = $core->get_template("archive-topic".$cfg{input}{locale});
+		$thtml =~ s!#{id}!$topic!gi;
+		$thtml =~ s!#{desc}!$t{$topic}{desc}!gi;
+
+		foreach my $s_id (@{$t{$topic}{sorted}}) {
+			my $shtml = $core->get_template("archive-story".$cfg{input}{locale});
+			foreach (
+				'id','headline','subtitle','author','locale','written','topic_id'
+			) {
+				$shtml =~ s!#{$_}!$s{$s_id}{$_}!gi;
+			}
+
+			my $link = $core->clean_up(
+				"/realgold/".$s{$s_id}{locale}."/".$topic."/".$s_id.".shtml"
+			);
+
+			$shtml =~ s!#{link}!$link!gi;
+
+			$tthtml .= $shtml;
+		}
+
+		$thtml =~ s!#{stories}!$tthtml!gi;
+		$tmp_html .= $thtml;
+	}
+
+	$html =~ s!#{topics}!$tmp_html!gi;
+
+	$core->write_file(
+		name	=> $cfg{input}{file},
+		data	=> $html,
+	);
+
+	$core->upload(@files);
+	$core->save_memory(\%stored);
+}
+
+#-------------#
+# Change Logs #
+#-------------#
+
+# $Log: make_archives,v $
+# Revision 1.1  2000/09/15 11:43:25  eric
+# * changed todays_stories to just display last ten stories regardless
+#   of day (not exactly truth in naming, but i'm lazy)
+# * added make_archives script to generate archive pages
+# * little fixes
+#
+
+#----------

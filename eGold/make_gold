@@ -1,0 +1,652 @@
+#!/usr/bin/perl
+#------------------------------------------------------------------------
+#           .               .    .        regenerate RealGold indexes and 
+# ,-,-. ,-. | , ,-. ,-. ,-. |  ,-|          new stories from the database
+# | | | ,-| |<  |-' | | | | |  | | 
+# ' ' ' `-^ ' ` `-' `-| `-' `' `-^ 
+#                    `'                                by eric richardson
+#------------------------------------------------------------------------
+#  $Id: make_gold,v 1.22 2000/09/17 11:05:40 eric Exp $
+#
+#  makegold: generate RealGold stories and indexes
+#  Copyright (C) 2000 Eric Richardson
+#
+#       This program is free software; you can redistribute it and/or
+#       modify it under the terms of the GNU General Public License
+#       as published by the Free Software Foundation; either version 2
+#       of the License, or (at your option) any later version.
+#
+#       This program is distributed in the hope that it will be useful,
+#       but WITHOUT ANY WARRANTY; without even the implied warranty of
+#       MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#       GNU General Public License for more details.
+#
+#       You should have received a copy of the GNU General Public License
+#       along with this program; if not, write to the Free Software
+#       Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  
+#       02111-1307, USA.
+#
+#  This script looks in the RealGold stories database for new stories, 
+#  and generates pages for the stories it finds.  It then also 
+#  regenerates the indexes for each of the topics.
+#
+#------------------------------------------------------------------------
+
+use strict;
+use vars qw($core $db %dbh %cfg %topics %stories %images @files %stored $date);
+
+use eGold::core;
+use Image::Magick;
+use String::CRC32;
+use Date::Format;
+use Date::Language;
+use LWP::UserAgent;
+use Time::ParseDate;
+use Storable;
+
+#----------------#
+# Initialization #
+#----------------#
+
+$core = eGold::core->start("make_gold");
+
+MAIN: {
+	# set up some prepared queries
+	$dbh{get_image} = $db->prepare("
+		select title,image_text,location,description,photographer,image from image 
+		where id = ?
+	");
+
+	foreach my $locale (&find_locales) {
+		local $date = Date::Language->new($cfg{locale}{$locale}{language});
+		warn "locale: $locale\n";
+		my @topics = &find_topics($locale);
+		warn "topics: @topics\n";
+		foreach my $topic (@topics) {
+			my @stories = &find_stories($topic);
+			warn "stories: @stories\n";
+			foreach my $story (@stories) {
+				&generate_story(
+					topic	=> $topic,
+					story	=> $story,
+				);
+			}
+
+			&generate_story_index(
+				topic	=> $topic,
+				stories	=> \@stories,
+			);
+		}
+
+		&generate_topic_index(
+			locale	=> $locale,
+			topics	=> \@topics,
+		);
+	}
+
+	$core->upload(@files);
+	$core->save_memory;
+}
+
+#-------------#
+# Subroutines #
+#-------------#
+
+sub find_locales {
+	my @locales;
+	my $get_locales = $db->prepare("
+		select distinct locale from topic order by locale
+	");
+
+	$get_locales->execute;
+
+	my ($locale);
+	$get_locales->bind_columns(\$locale);
+
+	while ($get_locales->fetch) {
+		push @locales, $locale;
+	}
+
+	return @locales;
+}
+
+#----------
+
+sub generate_story_index {
+	my %args = @_;
+	my $shtml;
+
+	my $html = $core->get_template(
+		"s_index.".$topics{$args{topic}}{locale}.".".$args{topic}
+	);
+
+	# fill in topic info
+	$html =~ s!#{t_name}!$args{topic}!gi;
+	$html =~ s!#{t_desc}!$topics{$args{topic}}{desc}!gi;
+
+	foreach my $story (@{$args{stories}}) {
+		my $lshtml = $core->get_template(
+			"s_index-story.".$topics{$args{topic}}{locale}.".".$args{topic}
+		);
+
+		foreach my $var (
+			'id','headline','subtitle','location','intro','author','released'
+		) {
+			$lshtml =~ s!#{$var}!$stories{$story}{$var}!gi;
+		}
+
+		$shtml .= $lshtml;		
+	}
+
+	$html =~ s!#{stories}!$shtml!i;
+
+	$core->write_file(
+		name	=> 
+			$topics{$args{topic}}{locale}."/".$args{topic}."/topics.shtml",
+		data	=> $shtml,
+	);
+
+	$core->write_file(
+		name	=> 
+			$topics{$args{topic}}{locale}."/".$args{topic}."/index.shtml",
+		data	=> $html,
+	);
+
+}
+
+#----------
+
+sub generate_topic_index {
+	my %args = @_;
+	my $thtml;
+
+	my $html = $core->get_template("t_index.".$args{locale});
+
+	foreach my $topic (@{$args{topics}}) {
+		my $lthtml = $core->get_template("t_index-topic.".$args{locale});
+		$lthtml =~ s!#{ctopic}!$core->clean_up($topic)!gei;
+		$lthtml =~ s!#{topic}!$topic!gi;
+		$lthtml =~ s!#{desc}!$topics{$topic}{desc}!gi;
+
+		$thtml .= $lthtml;
+	} 
+
+	$html =~ s!#{topics}!$thtml!i;
+
+	$core->write_file(
+		name			=> $args{locale}."/index.shtml",
+		data			=> $html,
+	);
+}
+
+#----------
+
+sub find_topics {
+	my $locale = shift;
+	my @topics;
+
+	my $get_topics = $db->prepare("
+		select topic_id,description from topic where locale = ? 
+		order by description
+	");
+
+	$get_topics->execute($locale);
+
+	my ($t_id,$t_desc);
+	$get_topics->bind_columns(\$t_id,\$t_desc);
+
+	while ($get_topics->fetch) {
+		push @topics, $t_id;
+		%{$topics{$t_id}} = (
+			desc	=> $t_desc,
+			locale	=> $locale,
+		);
+	}
+
+	return @topics;
+}
+
+#----------
+
+sub find_stories {
+	my $topic = shift;
+	my @stories;
+
+	my $get_stories = $db->prepare("
+		select 
+			article.id,article.headline,article.subtitle,article.location,
+			article.intro,article.story,article.author,unix_timestamp(article.released),article.intercession
+		from 
+			article,art_topic_lnk 
+		where 
+			art_topic_lnk.article_id = article.id 
+			and released != 0
+			and article.state != 'WITHDRAWN'
+			and art_topic_lnk.topic_id = ?
+		order by article.written
+	");
+
+
+	$get_stories->execute($topic);
+
+	my ($id,$head,$sub,$loc,$intro,$story,$author,$released,$intercess);
+	$get_stories->bind_columns(
+		\$id,\$head,\$sub,\$loc,\$intro,\$story,\$author,\$released,\$intercess
+	);
+	
+	while ($get_stories->fetch) {
+		push @stories, $id;
+
+		$story =~ s!\n!\n<br>!gi;
+		$intro =~ s!\n!\n<br>!gi;
+
+		# isn't this pretty much the most roundabout method of delivering a 
+		# simple little date that you've ever seen?  Gar.
+		$released = time2str($cfg{locale}{$topics{$topic}{locale}}{date},$released);
+
+		%{$stories{$id}} = (
+			id			=> $id,
+			headline	=> $head,
+			subtitle	=> $sub,
+			location	=> $loc,
+			intro		=> $intro,
+			story		=> $story,
+			author		=> $author,
+			released	=> $released,
+			locale		=> $topics{$topic}{locale},
+			intercession	=> $intercess,
+		);
+	}
+
+	return @stories;
+}
+
+#----------
+
+sub generate_story {
+	my %args = @_;
+
+	my $outfile = 
+		$topics{$args{topic}}{locale}."/".$args{topic}."/".$args{story}.".shtml";
+
+	my $html = $core->get_template(
+		"story.".$topics{$args{topic}}{locale}.".".$args{topic}
+	);
+
+	my @images 	= &load_images_for_story($args{story});
+	my @links 	= &load_links_for_story($args{story});
+
+	my @img_links;
+	foreach my $img (@images) {
+		&generate_image($img);
+		&generate_image_page($img,$topics{$args{topic}}{locale});
+		
+		if ($html =~ m!#{thumb}!i) {
+			my $thumbnail = &generate_thumbnail(
+				img		=> $img,
+				locale	=> $topics{$args{topic}}{locale},
+				topic	=> $args{topic},
+			);
+			$html =~ s!#{thumb}!$thumbnail!i;
+		} else {
+			push @img_links, [$images{$img}{text},'../../photos/'.$img.'.shtml'];
+		}
+	}
+
+	unshift @links, @img_links;
+
+	foreach (
+		'headline','subtitle','location','intro','story','author','released','intercession'
+	) {
+		$html =~ s!#{$_}!$stories{$args{story}}{$_}!gi;
+	}
+
+	my $link_html = &make_links(@links);
+	$html =~ s!#{links}!$link_html!i;
+
+	my $fid;
+	if (!$stored{eThreads}{$args{story}}) {
+		# this is the first time we're creating this story...  hopefully
+
+		$fid = &create_forum(
+			id			=> $args{story},
+			title		=> $stories{$args{story}}{headline},
+		);
+
+		$stored{eThreads}{$args{story}} = $fid;
+	} else {
+		$fid = $stored{eThreads}{$args{story}};
+		warn "using stored fid: $fid\n";
+	}
+
+	$html =~ s!#{fid}!$fid!gi;
+
+	$html =~ s!#{[^}]+}!!g;
+	
+	$core->write_file(
+		name	=> $outfile,
+		data	=> $html,
+	);
+}
+
+#---------
+
+sub generate_thumbnail {
+	my %args = @_;
+
+	my $html = $core->get_template("thumb.".$args{locale}.".".$args{topic});
+
+	my $image = "../../photos/".$args{img} . "-thumb.jpg";
+	my $url = "../../photos/".$args{img}.".shtml";
+	$html =~ s!#{image}!$image!gi;
+	$html =~ s!#{url}!$url!gi;
+	$html =~ s!#{width}!$images{$args{img}}{thumb}{width}!gi;
+	$html =~ s!#{height}!$images{$args{img}}{thumb}{height}!gi;
+
+	foreach my $key (keys %{$images{$args{img}}}) {
+		next if ($key eq"thumb");
+		$html =~ s!#{$key}!$images{$args{img}}{$key}!gi;
+	}
+
+	return $html;
+}
+
+#---------
+
+sub load_links_for_story {
+	my $story = shift;
+	my @links;
+
+	my $get_links = $db->prepare("
+		select url_text,url from url where article_id = ?
+	");
+
+	$get_links->execute($story);
+
+	my ($text,$url);
+	$get_links->bind_columns(\$text,\$url);
+
+	push @links, [$text,$url] while ($get_links->fetch);
+
+	return @links;
+}
+
+#---------
+
+sub make_links {
+	my @links = @_;
+
+	my $html = "<ul>";
+
+	foreach my $linkref (@links) {
+		my ($text,$url) = @{$linkref};
+		my $type;
+
+		$text = $url if (!$text);
+
+		if ($url =~ m!^\.\./\.\./photos!) {
+			$type = 'IMG';
+		} elsif ($url =~ m!(ram|rm|mov)$!) {
+			$type = 'AV';
+		} else {
+			$type = 'URL';
+		}
+
+		$html .= qq(
+			<li>($type) <a href="$url">$text</a>
+		);
+	}	
+
+	$html .= "</ul>";
+
+	return $html;
+}
+
+#---------
+
+sub load_images_for_story {
+	my $story = shift;
+	my @images;
+
+	warn "load_images_for_story($story)\n";
+
+	my $get_images = $db->prepare("
+		select 
+			image.id
+		from 
+			image,art_image_lnk
+		where 
+			image.id = art_image_lnk.image_id and 
+			art_image_lnk.article_id = ?
+		order by art_image_lnk.position
+	");
+
+	$get_images->execute($story);
+
+	my ($id);
+	$get_images->bind_columns(\$id);
+
+	push @images, $id while ($get_images->fetch);
+
+	return @images;
+}
+
+#---------
+
+sub generate_image {
+	my $img = shift;
+
+	$dbh{get_image}->execute($img);
+	my ($title,$img_text,$loc,$desc,$photographer,$img_data);
+	$dbh{get_image}->bind_columns(
+		\$title,\$img_text,\$loc,\$desc,\$photographer,\$img_data
+	);
+	$dbh{get_image}->fetch;
+
+	%{$images{$img}} = (
+		title			=> $title,
+		text			=> $img_text,
+		location		=> $loc,
+		descript		=> $desc,
+		photographer	=> $photographer,
+	);
+	
+	$core->write_file(
+		name	=> "photos/".$img.".jpg",
+		data	=> $img_data,
+	);
+
+	my $im = Image::Magick->new;
+	$im->Read($cfg{output_dir}."photos/$img.jpg");
+
+	my ($x,$y) = $im->Get('width','height');
+
+	$images{$img}{width} 	= $x;
+	$images{$img}{height} 	= $y;
+
+	if ($cfg{thumbnail}{width} && ($cfg{thumbnail}{width} < $x)) {
+		my $percent = ($cfg{thumbnail}{width} / $x);
+		$x = sprintf("%1d",($x * $percent));
+		$y = sprintf("%1d",($y * $percent));
+	}
+
+	if ($cfg{thumbnail}{height} && ($cfg{thumbnail}{height} < $y)) {
+		my $percent = ($cfg{thumbnail}{height} / $y);
+		$x = sprintf("%1d",($x * $percent));
+		$y = sprintf("%1d",($y * $percent));
+	}
+
+	$im->Resize(
+		width	=> $x,
+		height	=> $y,
+	);
+
+	$images{$img}{thumb}{width}		= $x;
+	$images{$img}{thumb}{height}	= $y;
+
+	my $name = $cfg{output_dir}."photos/".$img."-thumb.jpg";
+
+	$im->Write($name);
+
+	open (THUMB, $name);
+		my $t_crc = crc32(*THUMB);
+	close THUMB;
+
+	return if ($t_crc == $stored{$name});
+
+	warn "new thumbnail\n";
+	$core->store($name,$t_crc);
+
+	warn "thumbnail crc: $stored{$name}\n";
+
+	push @files, $cfg{output_dir}."photos/".$img."-thumb.jpg";
+}
+
+#----------
+
+sub generate_image_page {
+	my $img = shift;
+	my $locale = shift;
+
+	my $html = $core->get_template("photo.".$locale);
+
+	foreach my $key (keys %{$images{$img}}) {
+		next if ($key eq"thumb");
+		$html =~ s!#{$key}!$images{$img}{$key}!gi;
+	}
+
+	my $image = $img . ".jpg";
+	$html =~ s!#{image}!$image!gi;
+	$html =~ s!#{width}!$images{$img}{width}!gi;
+	$html =~ s!#{height}!$images{$img}{height}!gi;
+
+	$core->write_file(
+		name	=> "photos/".$img.".shtml",
+		data	=> $html,
+	);
+}
+
+#----------
+
+sub create_forum {
+	my %args = @_;
+
+	my $ua = LWP::UserAgent->new;
+	$ua->agent('eGold/-4.0');
+
+	$args{title} =~ s!\W-_!!g;
+	$args{title} =~ s! !%20!g;
+
+	my $request = new HTTP::Request(
+		'GET',"http://forums.gospelcom.net/admin/realgold/articles/post?title=".$args{title}."&child_of=0&no_header=1&no_footer=1&submit=1"
+	);
+
+	$request->authorization_basic('eGold','scriptfoo');
+
+	my $response = $ua->simple_request($request);
+	my ($id) = $response->content =~ m!/view_post\?id=([^"]+)">!;
+	warn "id: $id\n";
+
+	return $id;
+}
+
+#------------#
+# Change Log #
+#------------#
+
+# $Log: make_gold,v $
+# Revision 1.22  2000/09/17 11:05:40  eric
+# * changed the way for determining published stories
+# * finished more functionality in make_archives
+#
+# Revision 1.21  2000/09/17 07:43:51  eric
+# * cleaned up the forum stuff
+#
+# Revision 1.20  2000/09/17 04:31:12  eric
+# * fixed forum creation code
+#
+# Revision 1.19  2000/09/15 12:12:22  eric
+# * added random_thumb script for generating home page thumbnails
+# * added thumbnail code to eGold::core
+#
+# Revision 1.18  2000/09/15 11:43:25  eric
+# * changed todays_stories to just display last ten stories regardless
+#   of day (not exactly truth in naming, but i'm lazy)
+# * added make_archives script to generate archive pages
+# * little fixes
+#
+# Revision 1.17  2000/09/13 22:46:34  eric
+# * some fixes
+# * made stored mem work again
+#
+# Revision 1.16  2000/09/11 09:38:42  eric
+# * first working revision of todays_stories
+# * updates to eGold::core
+#
+# Revision 1.15  2000/09/08 13:16:10  eric
+# * moved upload function to eGold::core
+#
+# Revision 1.14  2000/09/08 12:34:32  eric
+# * moved more functions over from make_gold to eGold::core
+#
+# Revision 1.13  2000/09/08 11:32:00  eric
+# * moved get_template into eGold::core
+#
+# Revision 1.12  2000/09/08 11:08:38  eric
+# * small fixes
+# * got rid of a couple warns
+# * added start of core module and todays_stories script
+#
+# Revision 1.11  2000/09/08 07:26:23  eric
+# * small fixes
+# * added crc code to thumbnails
+# * made crc code a little smarter about when to upload
+#
+# Revision 1.10  2000/09/07 06:49:59  eric
+# * started work on the rsync code
+# * fleshed out the &get_template calls to full length
+# * assorted cleanup
+#
+# Revision 1.9  2000/09/06 07:05:39  eric
+# * thumbnail code
+# * some little touches
+#
+# Revision 1.8  2000/09/05 13:13:08  eric
+# * fixed some photo code
+# * realized i was an idiot for taking the stored stuff out and put it back
+#   in.  this also involved fixing the checksum code to actually do something
+#   useful.
+#
+# Revision 1.7  2000/09/05 11:13:52  eric
+# * added missing warn_admin_of_conflict code.
+#
+# Revision 1.6  2000/09/05 10:49:36  eric
+# * moved checksum checking into &write_page.  All page writes should
+#   call this sub
+# * added recursive template loading.  Calls to &get_template need to
+#   be updated to be as full as possible (and then let the recursive
+#   stuff take it from there)
+#
+# Revision 1.5  2000/09/05 07:33:37  eric
+# * added some checksum code
+# * took out the unused cache stuff
+#
+# Revision 1.4  2000/09/04 16:01:04  eric
+# * added topic index generation code
+#
+# Revision 1.3  2000/09/04 15:39:59  eric
+# * wrote story index code
+# * fixed a lot of miscellaneous things
+# * code actually does something useful
+#
+# Revision 1.2  2000/09/03 06:25:49  eric
+# * a little more fleshed out code
+#
+# Revision 1.1.1.1  2000/08/29 13:29:30  eric
+# * first check-in of non-working devel code
+#
+
+#---------------#
+# End of Script #
+#---------------#
+

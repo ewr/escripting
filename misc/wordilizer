@@ -1,0 +1,57 @@
+#!/usr/bin/perl
+
+$wordlist = "/usr/dict/words";
+$num_words = shift;
+
+$url = "http://www.altavista.com/cgi-bin/query?pg=q&kl=XX&stype=stext&q=";
+
+while (1) {
+	$try_num++;
+	my $url = $url;
+	my $word_count;
+	while ($word_count++ < $num_words) {
+		my $word = &random_word;
+		$url .= "%2B$word+";
+	}
+	$url =~ s/\+$//;
+	$url =~ s/\&/\\&/g;
+
+	#warn "running lynx -dump $url\n";
+
+	my $output = `lynx -dump $url`;
+
+	#open (TMP,">tmp.dump");print TMP $output;close TMP;
+
+	if ($output =~ /AltaVista found no document matching your query/) {
+
+	} else {
+		$url =~ s/\\&/\&/g;
+		print "$try_num: $url\n";
+	}
+}
+
+sub random_word {
+    my $word = 0;
+    if (open (IN, "<$wordlist")) {
+        my $size = (stat(IN))[7];
+        my $pos = rand $size;
+        if (seek (IN, $pos, 0)) {
+            $word = <IN>;   # toss partial line
+            $word = <IN>;   # keep next line
+        }
+        close (IN);
+    }
+    return 0 if (!$word);
+    $word =~ s/^[ \t\n\r]+//;
+    $word =~ s/[ \t\n\r]+$//;
+    $word =~ s/ys$/y/;
+    $word =~ s/ally$//;
+    $word =~ s/ly$//;
+    $word =~ s/ies$/y/;
+    $word =~ s/ally$/al/;
+    $word =~ s/izes$/ize/;
+    $word =~ tr/A-Z/a-z/;
+    return $word;
+}
+
+

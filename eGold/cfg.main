@@ -1,0 +1,52 @@
+#------------------------------------------------------------------------
+#          ..|'''.|          '||       '||  eGold main configuration file
+#   ....  .|'     '    ...    ||     .. ||  
+# .|...|| ||    .... .|  '|.  ||   .'  '||  
+# ||      '|.    ||  ||   ||  ||   |.   ||  
+#  '|...'  ''|...'|   '|..|' .||.  '|..'||.            by eric richardson
+#------------------------------------------------------------------------
+
+sub cfg::cfg { return (
+	db			=> {
+		host	=> "",
+		db		=> "realgold",
+		user	=> "",
+		pass	=> "",
+	},
+
+	rsync		=> {
+		host	=> "",
+		dir		=> "",
+		mirror	=> 1,
+	},
+
+	locale		=> {
+		en		=> {
+			language	=> "English",
+			date		=> "%m/%d/%Y",
+		},
+		de		=> {
+			language	=> "German",
+			date		=> "%d/%m/%Y",
+		},
+	},
+
+	# front page excludes... list topic names
+	exclude		=> {
+		'BibleChronicles'	=> 1,
+	},
+
+	template_dir	=> "/home/eric/projects/realgold/templates/",
+	output_dir		=> "/home/realgold/public_html/realgold/",
+
+	thumbnail	=> {
+		width	=> 100,
+	},
+
+	cache		=> "/home/eric/projects/realgold/cache.",
+	admin_email	=> "make_gold\@ericrichardson.com",
+);};
+
+#----------
+
+1;

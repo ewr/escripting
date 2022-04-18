@@ -1,0 +1,287 @@
+#!/usr/bin/perl
+#---------------------------------------------------------------#
+#    __                    ___   ______  ___       An IM bot on #
+#   / /  ___  ___ ___ ____/ _ | /  _/  |/  /__ _       steroids #
+#  / _ \/ _ \(_-</ -_) __/ __ |_/ // /|_/ / _ `/                #
+# /_//_/\___/___/\__/_/ /_/ |_/___/_/  /_/\_,_/ eric richardson #
+#---------------------------------------------------------------#
+
+use Net::AIM;
+use Chatbot::Eliza;
+use Games::Dissociate;
+use strict;
+no strict "refs";
+use vars qw(%cfg $conn $aim %mem);
+
+#--------------------#
+# Configuration Info #
+#--------------------#
+
+%cfg = (
+	buddies => {
+		# (screen name)   => 1,
+	},
+	info    => qq(
+		I am hoserAIMa.  Bow down.<br>
+		My homepage is http://escripting.com/hoserAIMa/
+	),
+);
+
+($cfg{user},$cfg{pass}) = (shift,shift);
+
+#--------------------#
+# Connection Startup #
+#--------------------#
+
+# set up our master aim handle
+$aim = new Net::AIM;
+
+print "Creating connection to AIM server...\n";
+
+$aim->newconn(
+	Screenname => $cfg{user},
+	Password => $cfg{pass}
+) or die "server: Can't connect to AIM server.\n";
+
+my $aim_conn = $aim->getconn();
+
+print "Installing handler routines...";
+
+$aim_conn->set_handler( 'error',                \&on_error              );
+$aim_conn->set_handler( 'im_in',                \&on_im                 );
+$aim_conn->set_handler( 'nick',                 \&on_nick               );
+$aim_conn->set_handler( 'eviled',               \&on_eviled             );
+$aim_conn->set_handler( 'config',               \&on_config             );
+$aim_conn->set_handler( 'chat_join',            \&on_chat_join          );
+$aim_conn->set_handler( 'chat_left',            \&on_chat_left          );
+$aim_conn->set_handler( 'chat_in',              \&on_chat_in            );
+$aim_conn->set_handler( 'chat_invite',          \&on_chat_invite        );
+$aim_conn->set_handler( 'chat_update_buddy',    \&on_chat_update_buddy  );
+$aim_conn->set_handler( 'update_buddy',         \&on_update_buddy       );
+#$aim_conn->add_global_handler(  'disconnect',   \&on_disconnect         );
+
+print " done.\n";
+
+print "starting...\n";
+
+$aim->start;
+
+#---------------------#
+# response generators #
+#---------------------#
+
+
+sub make_response_for {
+	my ($nick,$msg) = @_;
+
+	my @modes = ('psychologist');#,'zippy_quoter','dissociator');
+
+	# see if there's already a defined mode for this user
+	if ($mem{$nick}{mode} && (time - $mem{$nick}{mode_ts} < 30)) {
+		# use the existing mode
+	} else {
+		# pick a random mode
+		my $mode = $modes[ rand scalar @modes ];
+		$mem{$nick}{mode} = $mode;
+		$mem{$nick}{mode_ts} = time;
+		warn "--- $nick is going to $mode mode ---\n";
+	}
+
+	my $mode = $mem{$nick}{mode};
+
+	my $response = &$mode($nick,$msg);
+
+	warn "sent $nick: $response\n";
+
+	return $response;
+}
+
+#----------
+
+sub psychologist {
+	my ($nick,$msg) = @_;
+	unless (${$mem{$nick}{eliza}}) {
+		${$mem{$nick}{eliza}} = new Chatbot::Eliza;
+		${$mem{$nick}{eliza}}->name("Hoser");
+	}
+
+	$msg =~ s/<[^>]+>//g;
+
+	my $response = ${$mem{$nick}{eliza}}->transform($msg);
+
+	return $response;
+}
+
+#----------
+
+sub zippy_quoter {
+	# we ignore input
+	open (ZIPPY, "/usr/share/games/fortunes/zippy") or die "zippy doh: $!";
+		local $/ = "%\n";
+		my @zippy = <ZIPPY>;
+	close ZIPPY;
+
+	my $quote = $zippy[ rand scalar @zippy ];
+	$quote =~ s/\n/ /g;
+	$quote =~ s/%//g;
+	return $quote;
+}
+
+#----------
+
+sub dissociator {
+	open (ZIPPY, "/usr/share/games/fortunes/fortunes") or die "wisdom doh: $!";
+		local $/ = "%\n";
+		my @zippy = <ZIPPY>;
+	close ZIPPY;
+
+	my $response;
+	do {
+		my $quote = $zippy[ rand scalar @zippy ];
+		$quote =~ s/\n/ /g;
+		$quote =~ s/%//g;
+
+		$response = dissociate($quote,"5","15");
+	} until (length($response) < 1024);
+
+	return $response;	
+}
+
+#----------
+
+sub questioner {
+	my ($nick,$msg) = @_;
+
+	return $msg."?";
+}
+
+
+#----------------------#
+# aim handler routines #
+#----------------------#
+
+# What to do on disconnection
+sub on_disconnect {
+    my ($self, $event) = @_;
+    print "Disconnected from (",
+        ($event->args())[0], ").\n";
+    # we'll just die now.
+    &kill_me_and_my_children;
+}
+#----------
+# What to do when we receive an IM
+sub on_im {
+    my ($self,$event,$from,$to)         = @_;
+	my $args = $event->args;
+    my ($nick,$friend,$msg)   = @$args;
+	
+	my $response = &make_response_for($nick,$msg);
+	
+	sleep 1;
+
+	$self->send_im($nick,$response);
+}
+#----------
+# What to do when the bot gets the NICK command
+#   (This usually happens upon login....)
+sub on_nick {
+    my ($self, $event) = @_;
+    my ($nick) = $event->from;
+    print "*$nick*  ", ($event->args), "\n";
+    # set our info
+    $self->set_info($cfg{info});
+    #$self->set_idle(0);
+    # add buddies to our buddy list
+    foreach my $buddy (keys %{$cfg{buddies}}) {
+        $self->add_buddy("Buddies",$buddy);
+    }
+}
+#----------
+my %users_online;
+sub on_update_buddy {
+    my ($self, $event) = @_;
+#   my ($nick) = $event->from;
+    my ($bud, $online, $evil, $signon_time, $idle_amount, $user_class) = $event->args;
+    #lets print out when users leave and when they enter;
+    if ($online eq 'T' && ! exists $users_online{$bud}) {
+        $users_online{$bud} = $signon_time;
+        print "$bud has signed on at " . scalar localtime($signon_time) . "\n";
+    } elsif ($online eq 'F') {
+        delete $users_online{$bud};
+        print "$bud has signed off at " . scalar localtime($signon_time)  . "\n";
+    }
+}
+#----------
+sub on_config {
+    my ($self, $event) = @_;
+    my ($str) = $event->args;
+    $self->set_config_str($str);
+# Uncomment the next line to sent the config back to the server
+# Maybe you should modify it first?
+#   $self->send_config();
+#   914351 5174
+    $self->send_buddies();
+}
+#----------
+sub on_error {
+    my ($self, $event) = @_;
+    my $error;
+    my @stuff;
+    ($error, @stuff) = $event->args;
+    my $errstr = $event->trans($error);
+    $errstr =~ s/\$(\d+)/$stuff[$1]/ge;
+    print STDERR "ERROR: $errstr\n";
+}
+#----------
+sub on_chat_left {
+    my ($self, $event) = @_;
+    my ($id) = $event->args;
+    my $name = $self->get_roomname($id);
+    $self->chat_left($id);
+    print "We left room $name\n";
+}
+#----------
+sub on_chat_join {
+    my ($self, $event) = @_;
+    my ($id, $name) = $event->args;
+    $self->chat_joined($id, $name);
+    print "We joined room $name\n";
+}
+#----------
+sub on_chat_update_buddy {
+    my $self = shift;
+#   my $self, $event) = @_;
+#   my ($id, $inside, @users) = $event->args;
+    print "UPDATECHAT\n";
+}
+#----------
+sub on_chat_in {
+    my ($self, $event) = @_;
+    my ($id, $user, $whisper, $msg) = $event->args;
+    my $action = 'said';
+    $action = 'whispered' if ($whisper =~ /T/i);
+    print '', $self->get_roomname($id) . "> $user $action $msg\n";
+    if ($msg =~ /please leave/i) {
+        $self->chat_leave($id);
+    }
+}
+#----------
+sub on_chat_invite {
+    my ($self, $event) = @_;
+    my ($name, $id, $user, $msg) = $event->args;
+    print "Invited to room $name by $user\n";
+    $self->chat_join($id, $name);
+}
+#----------
+sub on_eviled {
+    my ($self, $event) = @_;
+    my ($level, $culprit) = $event->args;
+    $culprit = 'An anonymous user' if ($culprit =~ /^\s*$/);
+    print "$culprit slapped us! Our evil level is now $level\n";
+    #should we hit them back twice??
+    if ($culprit !~ /^\s*$/) {
+        $self->evil($culprit);
+        $self->evil($culprit);
+    }
+}
+

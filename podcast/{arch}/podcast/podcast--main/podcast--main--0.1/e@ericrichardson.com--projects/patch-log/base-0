@@ -1,0 +1,14 @@
+Revision: podcast--main--0.1--base-0
+Archive: e@ericrichardson.com--projects
+Creator: Eric Richardson (sark) <e@ericrichardson.com>
+Date: Tue Mar  8 15:03:09 PST 2005
+Standard-date: 2005-03-08 23:03:09 GMT
+Summary: Initial import
+Keywords: 
+New-files: config podcast
+New-patches: e@ericrichardson.com--projects/podcast--main--0.1--base-0
+
+Initial import of podcast app.  Currently supports downloading audio files 
+to local machine, and (semi-untested) deleting old files to keep a certain 
+number of current files.
+

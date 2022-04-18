@@ -1,0 +1,171 @@
+#!/usr/bin/perl
+#-----------------------------------------------------------------------------
+#       ___            _   _               ___         _      _   _           
+#  ___ / __|__ _ _ __ (_) | |__ _  _   ___/ __| __ _ _(_)_ __| |_(_)_ _  __ _ 
+# / -_) (__/ _` | '  \ _  | '_ \ || | / -_)__ \/ _| '_| | '_ \  _| | ' \/ _` |
+# \___|\___\__,_|_|_|_(_) |_.__/\_, | \___|___/\__|_| |_| .__/\__|_|_||_\__, |
+#                               |__/                    |_|             |___/ 
+#-----------------------------------------------------------------------------
+#  $Id$
+#
+#  eCam - a smarter webcam
+#  Copyright (C) 2000 Eric Richardson
+#
+#       This program is free software; you can redistribute it and/or
+#       modify it under the terms of the GNU General Public License
+#       as published by the Free Software Foundation; either version 2
+#       of the License, or (at your option) any later version.
+#
+#       This program is distributed in the hope that it will be useful,
+#       but WITHOUT ANY WARRANTY; without even the implied warranty of
+#       MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#       GNU General Public License for more details.
+#
+#       You should have received a copy of the GNU General Public License
+#       along with this program; if not, write to the Free Software
+#       Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  
+#       02111-1307, USA.
+#
+#       For information, contact eScripting:
+#           info@escripting.com
+#           http://escripting.com
+#
+#-----------------------------------------------------------------------------
+
+use DBI;
+use IPC::Open2;
+use IO::Socket;
+use strict;
+use vars qw(%db %cfg %sockets);
+
+#----------
+
+%cfg = (
+	db_host	=> "",
+	db_type	=> "mysql",
+	db		=> "eCam",
+	tbl		=> "cams",
+	user	=> "",
+	passwd	=> "",
+
+	hosts	=> ['pizzabox','babel','gonzo'],
+
+	tmp_dir	=> "/tmp",
+);
+
+#----------
+
+$db{h} = DBI->connect("DBI:mysql:eCam:host","","");
+
+$db{insert} = $db{h}->prepare("
+	insert into $cfg{tbl}(id,host,timestamp,image) values(0,?,?,?)
+");
+
+#----------
+
+# the image grabbing, comparing, uploading loop
+
+while (1) {
+	foreach my $host (@{$cfg{hosts}}) {
+		next unless (my $socket = &connect_to_client($host));
+		warn "starting $host\n";
+		print $socket "CAMFOO HOSER U!\n";
+
+		$socket->autoflush(1);
+
+		# read the image in
+		my $img;
+		while (<$socket>) { 
+			$img .= $_;
+		}
+
+		# convert img to ppm
+
+#		my $djpeg_pid = open2(*PNM,*JPG,"djpeg -ppm");
+#
+#		print JPG $img;
+#		close(JPG);
+#
+#		my $ppm;
+#		$ppm .= $_ while (<PNM>);
+#
+#		close(PNM);
+
+		open (DJPEG, "| djpeg -ppm > $cfg{tmp_dir}/eCam.tmp.ppm");
+			print DJPEG $img;
+		close DJPEG;
+
+		my $ppm;
+		open (PPM, "$cfg{tmp_dir}/eCam.tmp.ppm");
+			$ppm .= $_ while (<PPM>);
+		close PPM;
+	
+		if (-e"$cfg{tmp_dir}/eCam.$host.ppm") {
+			# compare the image to determine if it has changed
+			open (ICMP, qq(/home/eric/scripts/eCam/icmp-new -i1 $cfg{tmp_dir}/eCam.$host.ppm -i2 $cfg{tmp_dir}/eCam.tmp.ppm -f "%m"|));
+				my $score = <ICMP>;
+			close ICMP;
+
+			warn "host: $host\tscore: $score\n";
+	
+			if ($score >= 3) {
+				warn "different image...  uploading\n";
+				&upload_image($host,$img,$ppm);
+			} else {
+				warn "too similar to upload\n";
+			}
+		} else {
+			# first image of run, or something weird happened
+			&upload_image($host,$img,$ppm);
+		}
+	}
+
+	sleep 10;
+}
+
+#----------
+
+sub connect_to_client {
+	my $host = shift;
+	my $socket = IO::Socket::INET->new(
+		PeerAddr	=> $host,
+		PeerPort	=> 3141,
+		Proto		=> "tcp",
+		Type		=> SOCK_STREAM,
+		Timeout		=> 5,
+	);
+	return $socket;
+}
+
+#----------
+
+sub upload_image {
+	my ($host,$img,$ppm) = @_;
+
+	open (TMP, "> $cfg{tmp_dir}/eCam.$host.ppm");
+		print TMP $ppm;
+	close TMP;
+
+	# get a low priority write lock...  If this bails we're going to jetison 
+	# and forget the image
+	unless ($db{h}->do("LOCK TABLE cams LOW_PRIORITY WRITE")) {
+		warn "NNOOOOOOO!!!!! ".$db{h}->errstr."\n";
+		return;
+	}
+
+	# insert the image
+	$db{insert}->execute($host,time,$img);
+
+	$db{h}->do("UNLOCK TABLE");
+}
+
+#-------------#
+# Change Logs #
+#-------------#
+
+# $Log$
+
+#---------------#
+# End of Script #
+#---------------#
+

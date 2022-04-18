@@ -1,0 +1,48 @@
+#!/usr/bin/perl
+
+use strict;
+use vars qw(@quotes $o_file);
+
+my $o_file = shift;
+die "./eQuotes (out file)\n" unless ($o_file);
+
+fork && exit;
+
+&get_quotes;
+&randomize_quotes;
+while (1) {
+	my $quote = shift(@quotes);
+	if (!$quote) {
+		# doh.  we ran out.  let's do that again.
+		&get_quotes;
+		&randomize_quotes;
+		$quote = shift(@quotes);
+	}
+	open (FIFO, "> $o_file") or die $!;
+	$quote =~ s/\n%%\n//g;
+	print FIFO $quote;
+	close FIFO;
+	select(undef,undef,undef,0.2);
+}
+
+#-------------#
+# Subroutines #
+#-------------#
+
+sub get_quotes {
+	open (QUOTES, "quotes") or die $!;
+		local $/ = "%%\n";
+		@quotes = <QUOTES>;
+	close QUOTES;
+}
+
+#----------
+
+sub randomize_quotes {
+	my ($i,$j);
+	for ($i = @quotes; --$i;) {
+		my $j = int rand ($i+1);
+		next if $i == $j;
+		@quotes[$i,$j] = @quotes[$j,$i];
+	}
+}

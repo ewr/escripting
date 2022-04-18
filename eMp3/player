@@ -1,0 +1,130 @@
+#!/usr/bin/perl
+#---------------------------------------------------------------------
+#  $Id: player,v 1.5 1999/07/12 13:35:06 eric Exp $
+#
+#  eMp3 - taking playlists a step beyond
+#  Copyright (C) 1998 Eric Richardson
+#
+#     This program is free software; you can redistribute it and/or
+#     modify it under the terms of the GNU General Public License
+#     as published by the Free Software Foundation; either version 2
+#     of the License, or (at your option) any later version.
+#
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+#
+#     You should have received a copy of the GNU General Public License
+#     along with this program; if not, write to the Free Software
+#     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
+#     02111-1307, USA.
+#
+#     For information on eMp3, contact eScripting at
+#     escripting@escripting.com , or check out the eMp3 web site at
+#     http://www.escripting.com/eMp3/
+#
+#  this is the eMp3 player script
+#
+#---------------------------------------------------------------------
+
+use IPC::Shareable;
+use DBI;
+use MPEG::MP3Info;
+use XaudioPlayer;
+
+%options = (
+	create      => 0,
+	exclusive   => 0,
+	mode        => 0644,
+	destroy     => 0,
+);
+$handle = tie (%shared, 'IPC::Shareable', 'eMp3', { %options }) or die $!;
+
+#$db = DBI->connect("DBI:mysql:e:db.ericrichardson.com", "e","e");
+
+$xplayer = new XaudioPlayer;
+
+$SIG{INT} = sub { $xplayer->Exit; die "$$ dying\n"; };
+$SIG{TERM} = sub { $xplayer->Exit; die "$$ dying\n"; };
+$SIG{USR2} = \&surface_and_breath;
+
+$player = "/home/eric/scripts/eMp3/player";
+
+$shared{player_pid} = $$;
+
+if ($shared{current_song}) {
+	&play_song($shared{current_song});
+} else {
+	warn "crazy freak...  there's nothing in the song queue...\n";
+}
+
+#----------
+
+sub play_song {
+	my $song = shift;
+#	&log_song($song);
+	$xplayer->Open($song);
+	$xplayer->Play;
+
+	while(my $message = $xplayer->GetMessage) {
+		&handle_message($message);
+	}
+}
+
+#----------
+
+sub handle_message {
+	$_ = shift;
+
+	if (/EOF/) {
+		$xplayer->Exit;
+	} elsif (/MSG notify exited/) {
+		exit;
+	} elsif (/MSG notify player state/) {
+		($shared{player_state}) = /MSG notify player state \[([^\]]+)\]\n/;
+	} elsif (/MSG notify timecode/) {
+		($shared{current_file_time}) = /MSG notify timecode \[([^\]]+)\]\n/;
+	}
+}
+
+#----------
+
+sub log_song {
+	my ($song,$warning) = @_;
+	my $time 			= time;
+
+	my $tag = get_mp3tag($song) unless ($warning);
+
+	if ($tag) {
+		$song = "$tag->{ARTIST} : $tag->{TITLE}";
+	} else {
+		$song =~ s!/audio/mp3/!!g;
+	}
+
+	$song =~ s/\'/\\'/g;
+	unless ($e{options}{disable_log}) {
+		$db->do("
+			insert into eMp3log(timestamp,song) values($time,'$song')
+		");
+	}
+}
+
+
+#----------
+
+sub surface_and_breath {
+	if ($shared{player_message} eq"restart") {
+		$xplayer->seek(0,400);
+	} elsif ($shared{player_message} eq"seek") {
+	} elsif ($shared{player_message} eq"pause") {
+		$xplayer->pause;
+		local $SIG{ALRM} = sub {$xplayer->Play};
+		sleep;
+	} elsif ($shared{player_message} eq"next") {
+		$xplayer->Exit;
+		$shared{player_pid} = '';
+		exit;
+	}
+	$shared{player_message} = '';
+}

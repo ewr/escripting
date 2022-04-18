@@ -1,0 +1,18 @@
+# MySQL dump 7.1
+#
+# Host: localhost    Database: eCam
+#--------------------------------------------------------
+# Server version        3.22.32
+
+#
+# Table structure for table 'cams'
+#
+CREATE TABLE cams (
+  id int(11) DEFAULT '0' NOT NULL auto_increment,
+  host varchar(15) DEFAULT '' NOT NULL,
+  timestamp int(11) DEFAULT '0' NOT NULL,
+  image blob NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE host (host,timestamp)
+);
+

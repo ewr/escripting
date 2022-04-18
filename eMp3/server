@@ -1,0 +1,99 @@
+#!/usr/bin/perl
+#---------------------------------------------------------------------
+#  $Id: server,v 1.2 1999/07/09 21:03:19 eric Exp $
+#
+#  eMp3 - taking playlists a step beyond
+#  Copyright (C) 1998 Eric Richardson
+#
+#     This program is free software; you can redistribute it and/or
+#     modify it under the terms of the GNU General Public License
+#     as published by the Free Software Foundation; either version 2
+#     of the License, or (at your option) any later version.
+#
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+#
+#     You should have received a copy of the GNU General Public License
+#     along with this program; if not, write to the Free Software
+#     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
+#     02111-1307, USA.
+#
+#     For information on eMp3, contact eScripting at
+#     escripting@escripting.com , or check out the eMp3 web site at
+#     http://www.escripting.com/eMp3/
+#
+#  This is the server script for eMp3.  It takes a playlist out of
+#  the database and plays random songs out of it.
+#
+#---------------------------------------------------------------------
+
+use IPC::Shareable;
+
+$player = "/home/eric/scripts/eMp3/player";
+
+# server <-> client
+$handle = tie %shared,'IPC::Shareable','eMp3',{
+	exclusive	=> 0, 
+	create		=> 1, 
+	destroy		=> 1
+};
+
+$SIG{INT} = \&kill_sucker;
+
+&record_pid;
+$shared{test} = "hello from $$";
+$shared{songs} = '';
+
+#----------
+
+while (1) {
+	local $SIG{ALRM} = \&do_stuff;
+	sleep;
+}
+
+#----------
+
+sub do_stuff {
+	local $SIG{ALRM} = \&do_stuff;
+	my $command = $shared{control};
+	if ($command eq"play") {
+		&play;
+	} elsif ($command eq"next") {
+		$shared{message}{$shared{player_pid}} = "next";
+		kill 12, $e{player_pid};
+	} elsif ($command eq"rewind") {
+		$shared{message}{$shared{player_pid}} = "restart";
+		kill 12, $shared{player_pid};
+	} else {
+		warn "unrecognized command: $command\n";
+	}
+}
+
+#----------
+
+sub play {
+	while (my $song = ${$shared{songs}}[$shared{current_num}]) {
+		$shared{current_song} = $song;
+		`$player`;
+		$shared{current_num}++;
+	}
+}
+
+#----------
+
+sub record_pid {
+	$shared{server_pid} = $$;
+
+	open (PID_FILE, ">/tmp/eMp3.pid");
+		print PID_FILE $$;
+	close PID_FILE;	
+}
+
+#----------
+
+sub kill_sucker {
+	`rm /tmp/eMp3.pid`;
+	die "$$ dying\n";
+}

@@ -1,0 +1,29 @@
+<config>
+
+	<cache>/home/eric/projects/podcast/cache</cache>
+	<local>/home/eric/projects/podcast/audio</local>
+	<feed name="Left, Right &amp; Center">
+		<url>http://kcrw.com/podcast/show/lr</url>
+		<count>3</count>
+		<title>LR: %Y/%m/%d #T#</title>
+		<artist>Left, Right, &amp; Center</artist>
+	</feed>
+	<feed name="Which Way LA">
+		<url>http://kcrw.com/podcast/show/ww</url>
+		<count>3</count>
+		<title>WW: %Y/%m/%d #T#</title>
+		<artist>Which Way, L.A.?</artist>
+	</feed>
+	<feed name="Design &amp; Architecture">
+		<url>http://kcrw.com/podcast/show/de</url>
+		<count>2</count>
+		<title>D&amp;A: %Y/%m/%d #T#</title>
+		<artist>Design &amp; Architecture</artist>
+	</feed>
+	<feed name="To The Point">
+		<url>http://kcrw.com/podcast/show/tp</url>
+		<count>3</count>
+		<title>TP: %Y/%m/%d #T#</title>
+		<artist>To The Point</artist>
+	</feed>
+</config>
