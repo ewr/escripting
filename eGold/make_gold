@@ -51,41 +51,41 @@ use Storable;
 $core = eGold::core->start("make_gold");
 
 MAIN: {
-	# set up some prepared queries
-	$dbh{get_image} = $db->prepare("
-		select title,image_text,location,description,photographer,image from image 
-		where id = ?
-	");
+    # set up some prepared queries
+    $dbh{get_image} = $db->prepare("
+        select title,image_text,location,description,photographer,image from image 
+        where id = ?
+    ");
 
-	foreach my $locale (&find_locales) {
-		local $date = Date::Language->new($cfg{locale}{$locale}{language});
-		warn "locale: $locale\n";
-		my @topics = &find_topics($locale);
-		warn "topics: @topics\n";
-		foreach my $topic (@topics) {
-			my @stories = &find_stories($topic);
-			warn "stories: @stories\n";
-			foreach my $story (@stories) {
-				&generate_story(
-					topic	=> $topic,
-					story	=> $story,
-				);
-			}
+    foreach my $locale (&find_locales) {
+        local $date = Date::Language->new($cfg{locale}{$locale}{language});
+        warn "locale: $locale\n";
+        my @topics = &find_topics($locale);
+        warn "topics: @topics\n";
+        foreach my $topic (@topics) {
+            my @stories = &find_stories($topic);
+            warn "stories: @stories\n";
+            foreach my $story (@stories) {
+                &generate_story(
+                    topic	=> $topic,
+                    story	=> $story,
+                );
+            }
 
-			&generate_story_index(
-				topic	=> $topic,
-				stories	=> \@stories,
-			);
-		}
+            &generate_story_index(
+                topic	=> $topic,
+                stories	=> \@stories,
+            );
+        }
 
-		&generate_topic_index(
-			locale	=> $locale,
-			topics	=> \@topics,
-		);
-	}
+        &generate_topic_index(
+            locale	=> $locale,
+            topics	=> \@topics,
+        );
+    }
 
-	$core->upload(@files);
-	$core->save_memory;
+    $core->upload(@files);
+    $core->save_memory;
 }
 
 #-------------#
@@ -93,461 +93,461 @@ MAIN: {
 #-------------#
 
 sub find_locales {
-	my @locales;
-	my $get_locales = $db->prepare("
-		select distinct locale from topic order by locale
-	");
+    my @locales;
+    my $get_locales = $db->prepare("
+        select distinct locale from topic order by locale
+    ");
 
-	$get_locales->execute;
+    $get_locales->execute;
 
-	my ($locale);
-	$get_locales->bind_columns(\$locale);
+    my ($locale);
+    $get_locales->bind_columns(\$locale);
 
-	while ($get_locales->fetch) {
-		push @locales, $locale;
-	}
+    while ($get_locales->fetch) {
+        push @locales, $locale;
+    }
 
-	return @locales;
+    return @locales;
 }
 
 #----------
 
 sub generate_story_index {
-	my %args = @_;
-	my $shtml;
+    my %args = @_;
+    my $shtml;
 
-	my $html = $core->get_template(
-		"s_index.".$topics{$args{topic}}{locale}.".".$args{topic}
-	);
+    my $html = $core->get_template(
+        "s_index.".$topics{$args{topic}}{locale}.".".$args{topic}
+    );
 
-	# fill in topic info
-	$html =~ s!#{t_name}!$args{topic}!gi;
-	$html =~ s!#{t_desc}!$topics{$args{topic}}{desc}!gi;
+    # fill in topic info
+    $html =~ s!#{t_name}!$args{topic}!gi;
+    $html =~ s!#{t_desc}!$topics{$args{topic}}{desc}!gi;
 
-	foreach my $story (@{$args{stories}}) {
-		my $lshtml = $core->get_template(
-			"s_index-story.".$topics{$args{topic}}{locale}.".".$args{topic}
-		);
+    foreach my $story (@{$args{stories}}) {
+        my $lshtml = $core->get_template(
+            "s_index-story.".$topics{$args{topic}}{locale}.".".$args{topic}
+        );
 
-		foreach my $var (
-			'id','headline','subtitle','location','intro','author','released'
-		) {
-			$lshtml =~ s!#{$var}!$stories{$story}{$var}!gi;
-		}
+        foreach my $var (
+            'id','headline','subtitle','location','intro','author','released'
+        ) {
+            $lshtml =~ s!#{$var}!$stories{$story}{$var}!gi;
+        }
 
-		$shtml .= $lshtml;		
-	}
+        $shtml .= $lshtml;		
+    }
 
-	$html =~ s!#{stories}!$shtml!i;
+    $html =~ s!#{stories}!$shtml!i;
 
-	$core->write_file(
-		name	=> 
-			$topics{$args{topic}}{locale}."/".$args{topic}."/topics.shtml",
-		data	=> $shtml,
-	);
+    $core->write_file(
+        name	=> 
+            $topics{$args{topic}}{locale}."/".$args{topic}."/topics.shtml",
+        data	=> $shtml,
+    );
 
-	$core->write_file(
-		name	=> 
-			$topics{$args{topic}}{locale}."/".$args{topic}."/index.shtml",
-		data	=> $html,
-	);
+    $core->write_file(
+        name	=> 
+            $topics{$args{topic}}{locale}."/".$args{topic}."/index.shtml",
+        data	=> $html,
+    );
 
 }
 
 #----------
 
 sub generate_topic_index {
-	my %args = @_;
-	my $thtml;
+    my %args = @_;
+    my $thtml;
 
-	my $html = $core->get_template("t_index.".$args{locale});
+    my $html = $core->get_template("t_index.".$args{locale});
 
-	foreach my $topic (@{$args{topics}}) {
-		my $lthtml = $core->get_template("t_index-topic.".$args{locale});
-		$lthtml =~ s!#{ctopic}!$core->clean_up($topic)!gei;
-		$lthtml =~ s!#{topic}!$topic!gi;
-		$lthtml =~ s!#{desc}!$topics{$topic}{desc}!gi;
+    foreach my $topic (@{$args{topics}}) {
+        my $lthtml = $core->get_template("t_index-topic.".$args{locale});
+        $lthtml =~ s!#{ctopic}!$core->clean_up($topic)!gei;
+        $lthtml =~ s!#{topic}!$topic!gi;
+        $lthtml =~ s!#{desc}!$topics{$topic}{desc}!gi;
 
-		$thtml .= $lthtml;
-	} 
+        $thtml .= $lthtml;
+    } 
 
-	$html =~ s!#{topics}!$thtml!i;
+    $html =~ s!#{topics}!$thtml!i;
 
-	$core->write_file(
-		name			=> $args{locale}."/index.shtml",
-		data			=> $html,
-	);
+    $core->write_file(
+        name			=> $args{locale}."/index.shtml",
+        data			=> $html,
+    );
 }
 
 #----------
 
 sub find_topics {
-	my $locale = shift;
-	my @topics;
+    my $locale = shift;
+    my @topics;
 
-	my $get_topics = $db->prepare("
-		select topic_id,description from topic where locale = ? 
-		order by description
-	");
+    my $get_topics = $db->prepare("
+        select topic_id,description from topic where locale = ? 
+        order by description
+    ");
 
-	$get_topics->execute($locale);
+    $get_topics->execute($locale);
 
-	my ($t_id,$t_desc);
-	$get_topics->bind_columns(\$t_id,\$t_desc);
+    my ($t_id,$t_desc);
+    $get_topics->bind_columns(\$t_id,\$t_desc);
 
-	while ($get_topics->fetch) {
-		push @topics, $t_id;
-		%{$topics{$t_id}} = (
-			desc	=> $t_desc,
-			locale	=> $locale,
-		);
-	}
+    while ($get_topics->fetch) {
+        push @topics, $t_id;
+        %{$topics{$t_id}} = (
+            desc	=> $t_desc,
+            locale	=> $locale,
+        );
+    }
 
-	return @topics;
+    return @topics;
 }
 
 #----------
 
 sub find_stories {
-	my $topic = shift;
-	my @stories;
+    my $topic = shift;
+    my @stories;
 
-	my $get_stories = $db->prepare("
-		select 
-			article.id,article.headline,article.subtitle,article.location,
-			article.intro,article.story,article.author,unix_timestamp(article.released),article.intercession
-		from 
-			article,art_topic_lnk 
-		where 
-			art_topic_lnk.article_id = article.id 
-			and released != 0
-			and article.state != 'WITHDRAWN'
-			and art_topic_lnk.topic_id = ?
-		order by article.written
-	");
+    my $get_stories = $db->prepare("
+        select 
+            article.id,article.headline,article.subtitle,article.location,
+            article.intro,article.story,article.author,unix_timestamp(article.released),article.intercession
+        from 
+            article,art_topic_lnk 
+        where 
+            art_topic_lnk.article_id = article.id 
+            and released != 0
+            and article.state != 'WITHDRAWN'
+            and art_topic_lnk.topic_id = ?
+        order by article.written
+    ");
 
 
-	$get_stories->execute($topic);
+    $get_stories->execute($topic);
 
-	my ($id,$head,$sub,$loc,$intro,$story,$author,$released,$intercess);
-	$get_stories->bind_columns(
-		\$id,\$head,\$sub,\$loc,\$intro,\$story,\$author,\$released,\$intercess
-	);
-	
-	while ($get_stories->fetch) {
-		push @stories, $id;
+    my ($id,$head,$sub,$loc,$intro,$story,$author,$released,$intercess);
+    $get_stories->bind_columns(
+        \$id,\$head,\$sub,\$loc,\$intro,\$story,\$author,\$released,\$intercess
+    );
+    
+    while ($get_stories->fetch) {
+        push @stories, $id;
 
-		$story =~ s!\n!\n<br>!gi;
-		$intro =~ s!\n!\n<br>!gi;
+        $story =~ s!\n!\n<br>!gi;
+        $intro =~ s!\n!\n<br>!gi;
 
-		# isn't this pretty much the most roundabout method of delivering a 
-		# simple little date that you've ever seen?  Gar.
-		$released = time2str($cfg{locale}{$topics{$topic}{locale}}{date},$released);
+        # isn't this pretty much the most roundabout method of delivering a 
+        # simple little date that you've ever seen?  Gar.
+        $released = time2str($cfg{locale}{$topics{$topic}{locale}}{date},$released);
 
-		%{$stories{$id}} = (
-			id			=> $id,
-			headline	=> $head,
-			subtitle	=> $sub,
-			location	=> $loc,
-			intro		=> $intro,
-			story		=> $story,
-			author		=> $author,
-			released	=> $released,
-			locale		=> $topics{$topic}{locale},
-			intercession	=> $intercess,
-		);
-	}
+        %{$stories{$id}} = (
+            id			=> $id,
+            headline	=> $head,
+            subtitle	=> $sub,
+            location	=> $loc,
+            intro		=> $intro,
+            story		=> $story,
+            author		=> $author,
+            released	=> $released,
+            locale		=> $topics{$topic}{locale},
+            intercession	=> $intercess,
+        );
+    }
 
-	return @stories;
+    return @stories;
 }
 
 #----------
 
 sub generate_story {
-	my %args = @_;
+    my %args = @_;
 
-	my $outfile = 
-		$topics{$args{topic}}{locale}."/".$args{topic}."/".$args{story}.".shtml";
+    my $outfile = 
+        $topics{$args{topic}}{locale}."/".$args{topic}."/".$args{story}.".shtml";
 
-	my $html = $core->get_template(
-		"story.".$topics{$args{topic}}{locale}.".".$args{topic}
-	);
+    my $html = $core->get_template(
+        "story.".$topics{$args{topic}}{locale}.".".$args{topic}
+    );
 
-	my @images 	= &load_images_for_story($args{story});
-	my @links 	= &load_links_for_story($args{story});
+    my @images 	= &load_images_for_story($args{story});
+    my @links 	= &load_links_for_story($args{story});
 
-	my @img_links;
-	foreach my $img (@images) {
-		&generate_image($img);
-		&generate_image_page($img,$topics{$args{topic}}{locale});
-		
-		if ($html =~ m!#{thumb}!i) {
-			my $thumbnail = &generate_thumbnail(
-				img		=> $img,
-				locale	=> $topics{$args{topic}}{locale},
-				topic	=> $args{topic},
-			);
-			$html =~ s!#{thumb}!$thumbnail!i;
-		} else {
-			push @img_links, [$images{$img}{text},'../../photos/'.$img.'.shtml'];
-		}
-	}
+    my @img_links;
+    foreach my $img (@images) {
+        &generate_image($img);
+        &generate_image_page($img,$topics{$args{topic}}{locale});
+        
+        if ($html =~ m!#{thumb}!i) {
+            my $thumbnail = &generate_thumbnail(
+                img		=> $img,
+                locale	=> $topics{$args{topic}}{locale},
+                topic	=> $args{topic},
+            );
+            $html =~ s!#{thumb}!$thumbnail!i;
+        } else {
+            push @img_links, [$images{$img}{text},'../../photos/'.$img.'.shtml'];
+        }
+    }
 
-	unshift @links, @img_links;
+    unshift @links, @img_links;
 
-	foreach (
-		'headline','subtitle','location','intro','story','author','released','intercession'
-	) {
-		$html =~ s!#{$_}!$stories{$args{story}}{$_}!gi;
-	}
+    foreach (
+        'headline','subtitle','location','intro','story','author','released','intercession'
+    ) {
+        $html =~ s!#{$_}!$stories{$args{story}}{$_}!gi;
+    }
 
-	my $link_html = &make_links(@links);
-	$html =~ s!#{links}!$link_html!i;
+    my $link_html = &make_links(@links);
+    $html =~ s!#{links}!$link_html!i;
 
-	my $fid;
-	if (!$stored{eThreads}{$args{story}}) {
-		# this is the first time we're creating this story...  hopefully
+    my $fid;
+    if (!$stored{eThreads}{$args{story}}) {
+        # this is the first time we're creating this story...  hopefully
 
-		$fid = &create_forum(
-			id			=> $args{story},
-			title		=> $stories{$args{story}}{headline},
-		);
+        $fid = &create_forum(
+            id			=> $args{story},
+            title		=> $stories{$args{story}}{headline},
+        );
 
-		$stored{eThreads}{$args{story}} = $fid;
-	} else {
-		$fid = $stored{eThreads}{$args{story}};
-		warn "using stored fid: $fid\n";
-	}
+        $stored{eThreads}{$args{story}} = $fid;
+    } else {
+        $fid = $stored{eThreads}{$args{story}};
+        warn "using stored fid: $fid\n";
+    }
 
-	$html =~ s!#{fid}!$fid!gi;
+    $html =~ s!#{fid}!$fid!gi;
 
-	$html =~ s!#{[^}]+}!!g;
-	
-	$core->write_file(
-		name	=> $outfile,
-		data	=> $html,
-	);
+    $html =~ s!#{[^}]+}!!g;
+    
+    $core->write_file(
+        name	=> $outfile,
+        data	=> $html,
+    );
 }
 
 #---------
 
 sub generate_thumbnail {
-	my %args = @_;
+    my %args = @_;
 
-	my $html = $core->get_template("thumb.".$args{locale}.".".$args{topic});
+    my $html = $core->get_template("thumb.".$args{locale}.".".$args{topic});
 
-	my $image = "../../photos/".$args{img} . "-thumb.jpg";
-	my $url = "../../photos/".$args{img}.".shtml";
-	$html =~ s!#{image}!$image!gi;
-	$html =~ s!#{url}!$url!gi;
-	$html =~ s!#{width}!$images{$args{img}}{thumb}{width}!gi;
-	$html =~ s!#{height}!$images{$args{img}}{thumb}{height}!gi;
+    my $image = "../../photos/".$args{img} . "-thumb.jpg";
+    my $url = "../../photos/".$args{img}.".shtml";
+    $html =~ s!#{image}!$image!gi;
+    $html =~ s!#{url}!$url!gi;
+    $html =~ s!#{width}!$images{$args{img}}{thumb}{width}!gi;
+    $html =~ s!#{height}!$images{$args{img}}{thumb}{height}!gi;
 
-	foreach my $key (keys %{$images{$args{img}}}) {
-		next if ($key eq"thumb");
-		$html =~ s!#{$key}!$images{$args{img}}{$key}!gi;
-	}
+    foreach my $key (keys %{$images{$args{img}}}) {
+        next if ($key eq"thumb");
+        $html =~ s!#{$key}!$images{$args{img}}{$key}!gi;
+    }
 
-	return $html;
+    return $html;
 }
 
 #---------
 
 sub load_links_for_story {
-	my $story = shift;
-	my @links;
+    my $story = shift;
+    my @links;
 
-	my $get_links = $db->prepare("
-		select url_text,url from url where article_id = ?
-	");
+    my $get_links = $db->prepare("
+        select url_text,url from url where article_id = ?
+    ");
 
-	$get_links->execute($story);
+    $get_links->execute($story);
 
-	my ($text,$url);
-	$get_links->bind_columns(\$text,\$url);
+    my ($text,$url);
+    $get_links->bind_columns(\$text,\$url);
 
-	push @links, [$text,$url] while ($get_links->fetch);
+    push @links, [$text,$url] while ($get_links->fetch);
 
-	return @links;
+    return @links;
 }
 
 #---------
 
 sub make_links {
-	my @links = @_;
+    my @links = @_;
 
-	my $html = "<ul>";
+    my $html = "<ul>";
 
-	foreach my $linkref (@links) {
-		my ($text,$url) = @{$linkref};
-		my $type;
+    foreach my $linkref (@links) {
+        my ($text,$url) = @{$linkref};
+        my $type;
 
-		$text = $url if (!$text);
+        $text = $url if (!$text);
 
-		if ($url =~ m!^\.\./\.\./photos!) {
-			$type = 'IMG';
-		} elsif ($url =~ m!(ram|rm|mov)$!) {
-			$type = 'AV';
-		} else {
-			$type = 'URL';
-		}
+        if ($url =~ m!^\.\./\.\./photos!) {
+            $type = 'IMG';
+        } elsif ($url =~ m!(ram|rm|mov)$!) {
+            $type = 'AV';
+        } else {
+            $type = 'URL';
+        }
 
-		$html .= qq(
-			<li>($type) <a href="$url">$text</a>
-		);
-	}	
+        $html .= qq(
+            <li>($type) <a href="$url">$text</a>
+        );
+    }	
 
-	$html .= "</ul>";
+    $html .= "</ul>";
 
-	return $html;
+    return $html;
 }
 
 #---------
 
 sub load_images_for_story {
-	my $story = shift;
-	my @images;
+    my $story = shift;
+    my @images;
 
-	warn "load_images_for_story($story)\n";
+    warn "load_images_for_story($story)\n";
 
-	my $get_images = $db->prepare("
-		select 
-			image.id
-		from 
-			image,art_image_lnk
-		where 
-			image.id = art_image_lnk.image_id and 
-			art_image_lnk.article_id = ?
-		order by art_image_lnk.position
-	");
+    my $get_images = $db->prepare("
+        select 
+            image.id
+        from 
+            image,art_image_lnk
+        where 
+            image.id = art_image_lnk.image_id and 
+            art_image_lnk.article_id = ?
+        order by art_image_lnk.position
+    ");
 
-	$get_images->execute($story);
+    $get_images->execute($story);
 
-	my ($id);
-	$get_images->bind_columns(\$id);
+    my ($id);
+    $get_images->bind_columns(\$id);
 
-	push @images, $id while ($get_images->fetch);
+    push @images, $id while ($get_images->fetch);
 
-	return @images;
+    return @images;
 }
 
 #---------
 
 sub generate_image {
-	my $img = shift;
+    my $img = shift;
 
-	$dbh{get_image}->execute($img);
-	my ($title,$img_text,$loc,$desc,$photographer,$img_data);
-	$dbh{get_image}->bind_columns(
-		\$title,\$img_text,\$loc,\$desc,\$photographer,\$img_data
-	);
-	$dbh{get_image}->fetch;
+    $dbh{get_image}->execute($img);
+    my ($title,$img_text,$loc,$desc,$photographer,$img_data);
+    $dbh{get_image}->bind_columns(
+        \$title,\$img_text,\$loc,\$desc,\$photographer,\$img_data
+    );
+    $dbh{get_image}->fetch;
 
-	%{$images{$img}} = (
-		title			=> $title,
-		text			=> $img_text,
-		location		=> $loc,
-		descript		=> $desc,
-		photographer	=> $photographer,
-	);
-	
-	$core->write_file(
-		name	=> "photos/".$img.".jpg",
-		data	=> $img_data,
-	);
+    %{$images{$img}} = (
+        title			=> $title,
+        text			=> $img_text,
+        location		=> $loc,
+        descript		=> $desc,
+        photographer	=> $photographer,
+    );
+    
+    $core->write_file(
+        name	=> "photos/".$img.".jpg",
+        data	=> $img_data,
+    );
 
-	my $im = Image::Magick->new;
-	$im->Read($cfg{output_dir}."photos/$img.jpg");
+    my $im = Image::Magick->new;
+    $im->Read($cfg{output_dir}."photos/$img.jpg");
 
-	my ($x,$y) = $im->Get('width','height');
+    my ($x,$y) = $im->Get('width','height');
 
-	$images{$img}{width} 	= $x;
-	$images{$img}{height} 	= $y;
+    $images{$img}{width} 	= $x;
+    $images{$img}{height} 	= $y;
 
-	if ($cfg{thumbnail}{width} && ($cfg{thumbnail}{width} < $x)) {
-		my $percent = ($cfg{thumbnail}{width} / $x);
-		$x = sprintf("%1d",($x * $percent));
-		$y = sprintf("%1d",($y * $percent));
-	}
+    if ($cfg{thumbnail}{width} && ($cfg{thumbnail}{width} < $x)) {
+        my $percent = ($cfg{thumbnail}{width} / $x);
+        $x = sprintf("%1d",($x * $percent));
+        $y = sprintf("%1d",($y * $percent));
+    }
 
-	if ($cfg{thumbnail}{height} && ($cfg{thumbnail}{height} < $y)) {
-		my $percent = ($cfg{thumbnail}{height} / $y);
-		$x = sprintf("%1d",($x * $percent));
-		$y = sprintf("%1d",($y * $percent));
-	}
+    if ($cfg{thumbnail}{height} && ($cfg{thumbnail}{height} < $y)) {
+        my $percent = ($cfg{thumbnail}{height} / $y);
+        $x = sprintf("%1d",($x * $percent));
+        $y = sprintf("%1d",($y * $percent));
+    }
 
-	$im->Resize(
-		width	=> $x,
-		height	=> $y,
-	);
+    $im->Resize(
+        width	=> $x,
+        height	=> $y,
+    );
 
-	$images{$img}{thumb}{width}		= $x;
-	$images{$img}{thumb}{height}	= $y;
+    $images{$img}{thumb}{width}		= $x;
+    $images{$img}{thumb}{height}	= $y;
 
-	my $name = $cfg{output_dir}."photos/".$img."-thumb.jpg";
+    my $name = $cfg{output_dir}."photos/".$img."-thumb.jpg";
 
-	$im->Write($name);
+    $im->Write($name);
 
-	open (THUMB, $name);
-		my $t_crc = crc32(*THUMB);
-	close THUMB;
+    open (THUMB, $name);
+        my $t_crc = crc32(*THUMB);
+    close THUMB;
 
-	return if ($t_crc == $stored{$name});
+    return if ($t_crc == $stored{$name});
 
-	warn "new thumbnail\n";
-	$core->store($name,$t_crc);
+    warn "new thumbnail\n";
+    $core->store($name,$t_crc);
 
-	warn "thumbnail crc: $stored{$name}\n";
+    warn "thumbnail crc: $stored{$name}\n";
 
-	push @files, $cfg{output_dir}."photos/".$img."-thumb.jpg";
+    push @files, $cfg{output_dir}."photos/".$img."-thumb.jpg";
 }
 
 #----------
 
 sub generate_image_page {
-	my $img = shift;
-	my $locale = shift;
+    my $img = shift;
+    my $locale = shift;
 
-	my $html = $core->get_template("photo.".$locale);
+    my $html = $core->get_template("photo.".$locale);
 
-	foreach my $key (keys %{$images{$img}}) {
-		next if ($key eq"thumb");
-		$html =~ s!#{$key}!$images{$img}{$key}!gi;
-	}
+    foreach my $key (keys %{$images{$img}}) {
+        next if ($key eq"thumb");
+        $html =~ s!#{$key}!$images{$img}{$key}!gi;
+    }
 
-	my $image = $img . ".jpg";
-	$html =~ s!#{image}!$image!gi;
-	$html =~ s!#{width}!$images{$img}{width}!gi;
-	$html =~ s!#{height}!$images{$img}{height}!gi;
+    my $image = $img . ".jpg";
+    $html =~ s!#{image}!$image!gi;
+    $html =~ s!#{width}!$images{$img}{width}!gi;
+    $html =~ s!#{height}!$images{$img}{height}!gi;
 
-	$core->write_file(
-		name	=> "photos/".$img.".shtml",
-		data	=> $html,
-	);
+    $core->write_file(
+        name	=> "photos/".$img.".shtml",
+        data	=> $html,
+    );
 }
 
 #----------
 
 sub create_forum {
-	my %args = @_;
+    my %args = @_;
 
-	my $ua = LWP::UserAgent->new;
-	$ua->agent('eGold/-4.0');
+    my $ua = LWP::UserAgent->new;
+    $ua->agent('eGold/-4.0');
 
-	$args{title} =~ s!\W-_!!g;
-	$args{title} =~ s! !%20!g;
+    $args{title} =~ s!\W-_!!g;
+    $args{title} =~ s! !%20!g;
 
-	my $request = new HTTP::Request(
-		'GET',"http://forums.gospelcom.net/admin/realgold/articles/post?title=".$args{title}."&child_of=0&no_header=1&no_footer=1&submit=1"
-	);
+    my $request = new HTTP::Request(
+        'GET',"http://forums.gospelcom.net/admin/realgold/articles/post?title=".$args{title}."&child_of=0&no_header=1&no_footer=1&submit=1"
+    );
 
-	$request->authorization_basic('eGold','scriptfoo');
+    $request->authorization_basic('eGold','scriptfoo');
 
-	my $response = $ua->simple_request($request);
-	my ($id) = $response->content =~ m!/view_post\?id=([^"]+)">!;
-	warn "id: $id\n";
+    my $response = $ua->simple_request($request);
+    my ($id) = $response->content =~ m!/view_post\?id=([^"]+)">!;
+    warn "id: $id\n";
 
-	return $id;
+    return $id;
 }
 
 #------------#

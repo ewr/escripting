@@ -46,8 +46,8 @@ use vars qw(%db %cfg);
     user    => "",
     passwd  => "",
 
-	host	=> 'mycomputer',
-	score   => '15',
+    host	=> 'mycomputer',
+    score   => '15',
 
     tmp_dir => "/tmp",
 );
@@ -55,7 +55,7 @@ use vars qw(%db %cfg);
 #----------
 
 $db{h} = DBI->connect(
-	"DBI:$cfg{db_type}:$cfg{db}:$cfg{db_host}",$cfg{user},$cfg{passwd}
+    "DBI:$cfg{db_type}:$cfg{db}:$cfg{db_host}",$cfg{user},$cfg{passwd}
 );
 
 $db{insert} = $db{h}->prepare("
@@ -65,58 +65,58 @@ $db{insert} = $db{h}->prepare("
 #----------
 
 while (1) {
-	#-- capture image --#
-	`streamer -d /dev/video -q -j 60 -f jpeg -i 1 -n ntsc -o /tmp/eCam-client.jpg`;
+    #-- capture image --#
+    `streamer -d /dev/video -q -j 60 -f jpeg -i 1 -n ntsc -o /tmp/eCam-client.jpg`;
 
-	my $img;
-	open (IMG, "/tmp/eCam-client.jpg");
-		undef $/;
-		$img = <IMG>;
-	close IMG;
-	
-	#-- compare and make upload decision --#
-	open (DJPEG, "| djpeg -ppm > $cfg{tmp_dir}/eCam.tmp.ppm");
-		print DJPEG $img;
-	close DJPEG;
+    my $img;
+    open (IMG, "/tmp/eCam-client.jpg");
+        undef $/;
+        $img = <IMG>;
+    close IMG;
+    
+    #-- compare and make upload decision --#
+    open (DJPEG, "| djpeg -ppm > $cfg{tmp_dir}/eCam.tmp.ppm");
+        print DJPEG $img;
+    close DJPEG;
 
-	if (-e"$cfg{tmp_dir}/eCam-client.ppm") {
-		# compare the image to determine if it has changed
-		open (ICMP, qq(/home/eric/scripts/eCam/icmp-new -i1 $cfg{tmp_dir}/eCam-client.ppm -i2 $cfg{tmp_dir}/eCam.tmp.ppm -f "%m"|));
-			my $score = <ICMP>;
-		close ICMP;
+    if (-e"$cfg{tmp_dir}/eCam-client.ppm") {
+        # compare the image to determine if it has changed
+        open (ICMP, qq(/home/eric/scripts/eCam/icmp-new -i1 $cfg{tmp_dir}/eCam-client.ppm -i2 $cfg{tmp_dir}/eCam.tmp.ppm -f "%m"|));
+            my $score = <ICMP>;
+        close ICMP;
 
-		if ($score >= $cfg{score}) {
-			warn "uploading with score of $score.\n" if ($cfg{debug});
-			&upload_image($img);
-		} else {
-			warn "too similar to upload\n" if ($cfg{debug});
-		}
-	} else {
-		&upload_image($img);
-	}
+        if ($score >= $cfg{score}) {
+            warn "uploading with score of $score.\n" if ($cfg{debug});
+            &upload_image($img);
+        } else {
+            warn "too similar to upload\n" if ($cfg{debug});
+        }
+    } else {
+        &upload_image($img);
+    }
 
-	sleep 20;
+    sleep 20;
 }
 
 #----------
 
 sub upload_image {
-	my ($img) = @_;
+    my ($img) = @_;
 
-	if (-e"/tmp/eCam.tmp.ppm") {
-		`cp /tmp/eCam.tmp.ppm /tmp/eCam-client.ppm`;
-	}
+    if (-e"/tmp/eCam.tmp.ppm") {
+        `cp /tmp/eCam.tmp.ppm /tmp/eCam-client.ppm`;
+    }
 
-	# get a low priority write lock...  If this bails we're going to jetison
-	# and forget the image
-	unless ($db{h}->do("LOCK TABLE cams LOW_PRIORITY WRITE")) {
-		warn "NNOOOOOOO!!!!! ".$db{h}->errstr."\n";
-		return;
-	}
+    # get a low priority write lock...  If this bails we're going to jetison
+    # and forget the image
+    unless ($db{h}->do("LOCK TABLE cams LOW_PRIORITY WRITE")) {
+        warn "NNOOOOOOO!!!!! ".$db{h}->errstr."\n";
+        return;
+    }
 
-	# insert the image
-	$db{insert}->execute($cfg{host},time,$img);
+    # insert the image
+    $db{insert}->execute($cfg{host},time,$img);
 
-	$db{h}->do("UNLOCK TABLE");
+    $db{h}->do("UNLOCK TABLE");
 }
 

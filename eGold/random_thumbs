@@ -44,129 +44,129 @@ $core = eGold::core->start("random_thumbs");
 ($cfg{input}{file}) = @ARGV;
 
 MAIN: {
-	my $html = $core->get_template("home-thumbs.html");
+    my $html = $core->get_template("home-thumbs.html");
 
-	# figure out how many images we need
-	my $count;
-	$count++ while ($html =~ m!#{img.*}!g);
+    # figure out how many images we need
+    my $count;
+    $count++ while ($html =~ m!#{img.*}!g);
 
-	warn "count: $count\n";
+    warn "count: $count\n";
 
-	# first we find articles with attached images
-	my $get_img_articles = $db->prepare("
-		select 
-			article.id,art_image_lnk.image_id from art_image_lnk,article 
-		where 
-			article.id = art_image_lnk.article_id and 
-			article.state != 'WITHDRAWN' and 
-			article.released != 0
-	");
+    # first we find articles with attached images
+    my $get_img_articles = $db->prepare("
+        select 
+            article.id,art_image_lnk.image_id from art_image_lnk,article 
+        where 
+            article.id = art_image_lnk.article_id and 
+            article.state != 'WITHDRAWN' and 
+            article.released != 0
+    ");
 
-	$get_img_articles->execute;
+    $get_img_articles->execute;
 
-	warn "got ".$get_img_articles->rows." images\n";
+    warn "got ".$get_img_articles->rows." images\n";
 
-	my (@ids,$aid,$iid);
-	$get_img_articles->bind_columns(\$aid,\$iid);
-	push @ids, [$aid,$iid] while ($get_img_articles->fetch);
+    my (@ids,$aid,$iid);
+    $get_img_articles->bind_columns(\$aid,\$iid);
+    push @ids, [$aid,$iid] while ($get_img_articles->fetch);
 
-	my $i;
+    my $i;
 
-	for ($i = @ids; --$i;) {
-		my $j = int rand ($i+1);
-		next if $i == $j;
-		@ids[$i,$j] = @ids[$j,$i];
-	}
+    for ($i = @ids; --$i;) {
+        my $j = int rand ($i+1);
+        next if $i == $j;
+        @ids[$i,$j] = @ids[$j,$i];
+    }
 
-	$i = 0;
+    $i = 0;
 
-	my (@good, %t);
-	while (my $ref = shift @ids) {
-		if ($t{s}{${$ref}[0]} || $t{i}{${$ref}[1]}) {
-			# discard it
-			warn "throwing out story: ${$ref}[0]\timage: ${$ref}[1]\n";
-		} else {
-			$t{s}{${$ref}[0]} = ${$ref}[1];
-			$t{i}{${$ref}[1]} = ${$ref}[0];
-			push @good, $ref;
-		}
-	}
+    my (@good, %t);
+    while (my $ref = shift @ids) {
+        if ($t{s}{${$ref}[0]} || $t{i}{${$ref}[1]}) {
+            # discard it
+            warn "throwing out story: ${$ref}[0]\timage: ${$ref}[1]\n";
+        } else {
+            $t{s}{${$ref}[0]} = ${$ref}[1];
+            $t{i}{${$ref}[1]} = ${$ref}[0];
+            push @good, $ref;
+        }
+    }
 
-	warn "good: ".scalar(@good)."\n";
+    warn "good: ".scalar(@good)."\n";
 
-	# chop @good to the number of thumbnail spots we found
-	#@good = splice @good, 0, $count;
+    # chop @good to the number of thumbnail spots we found
+    #@good = splice @good, 0, $count;
 
-	my $get_image = $db->prepare("
-		select image from image where id = ?
-	");
+    my $get_image = $db->prepare("
+        select image from image where id = ?
+    ");
 
-	my $get_story = $db->prepare("
-		select 
-			article.id,article.headline,article.locale,
-			art_topic_lnk.topic_id
-		from article,image,art_topic_lnk
-		where 
-			article.id = art_topic_lnk.article_id and 
-			article.id = ?
-	");
+    my $get_story = $db->prepare("
+        select 
+            article.id,article.headline,article.locale,
+            art_topic_lnk.topic_id
+        from article,image,art_topic_lnk
+        where 
+            article.id = art_topic_lnk.article_id and 
+            article.id = ?
+    ");
 
-	my %s;
-	my $num = 1;
+    my %s;
+    my $num = 1;
 
-	foreach my $ref (@good) {
-		$get_story->execute(${$ref}[0]);
-		$get_image->execute(${$ref}[1]);
+    foreach my $ref (@good) {
+        $get_story->execute(${$ref}[0]);
+        $get_image->execute(${$ref}[1]);
 
-		my ($id,$head,$locale,$topic) = $get_story->fetchrow_array;
+        my ($id,$head,$locale,$topic) = $get_story->fetchrow_array;
 
-		if ($cfg{exclude}{$topic}) {
-			warn "have to get rid of exlucded: $id\t$topic\n";
-			next;
-		}
+        if ($cfg{exclude}{$topic}) {
+            warn "have to get rid of exlucded: $id\t$topic\n";
+            next;
+        }
 
-		my $img = $get_image->fetchrow_array;
+        my $img = $get_image->fetchrow_array;
 
-		$core->write_file(
-			name	=> "photos/".${$ref}[1].".jpg",
-			data	=> $img,
-		);
+        $core->write_file(
+            name	=> "photos/".${$ref}[1].".jpg",
+            data	=> $img,
+        );
 
-		$core->thumbnail(
-			image		=> "photos/".${$ref}[1].".jpg",
-			thumb		=> "photos/".${$ref}[1]."-hpthumb.jpg",
-			width		=> 64,
-			height		=> 64,
-			letterbox	=> 1,
-		);
+        $core->thumbnail(
+            image		=> "photos/".${$ref}[1].".jpg",
+            thumb		=> "photos/".${$ref}[1]."-hpthumb.jpg",
+            width		=> 64,
+            height		=> 64,
+            letterbox	=> 1,
+        );
 
-		warn "$num is image ${$ref}[1]\n";
+        warn "$num is image ${$ref}[1]\n";
 
-		%{$s{$num++}} = (
-			id		=> $id,
-			head	=> $head,
-			locale	=> $locale,
-			topic	=> $topic,
-			img		=> "/realgold/photos/".${$ref}[1]."-hpthumb.jpg",
-			link	=> $core->clean_up(
-				"/realgold/".$locale."/".$topic."/".$id.".shtml"
-			),
-		);
+        %{$s{$num++}} = (
+            id		=> $id,
+            head	=> $head,
+            locale	=> $locale,
+            topic	=> $topic,
+            img		=> "/realgold/photos/".${$ref}[1]."-hpthumb.jpg",
+            link	=> $core->clean_up(
+                "/realgold/".$locale."/".$topic."/".$id.".shtml"
+            ),
+        );
 
-		last if ($num == ($count+1));
-	}
+        last if ($num == ($count+1));
+    }
 
-	while (my ($tag,$num) = $html =~ m!#{(img|link|head) ([^}]*)}!gi) {
-		$html =~ s!#{$tag $num}!$s{$num}{$tag}!;
-	}
+    while (my ($tag,$num) = $html =~ m!#{(img|link|head) ([^}]*)}!gi) {
+        $html =~ s!#{$tag $num}!$s{$num}{$tag}!;
+    }
 
-	$core->write_file(
-		name	=> $cfg{input}{file},
-		data	=> $html,
-	);
+    $core->write_file(
+        name	=> $cfg{input}{file},
+        data	=> $html,
+    );
 
-	$core->upload(@files);
-	$core->save_memory(\%stored);
+    $core->upload(@files);
+    $core->save_memory(\%stored);
 }
 
 #-------------#

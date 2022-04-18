@@ -6,28 +6,28 @@ $num_words = shift;
 $url = "http://www.altavista.com/cgi-bin/query?pg=q&kl=XX&stype=stext&q=";
 
 while (1) {
-	$try_num++;
-	my $url = $url;
-	my $word_count;
-	while ($word_count++ < $num_words) {
-		my $word = &random_word;
-		$url .= "%2B$word+";
-	}
-	$url =~ s/\+$//;
-	$url =~ s/\&/\\&/g;
+    $try_num++;
+    my $url = $url;
+    my $word_count;
+    while ($word_count++ < $num_words) {
+        my $word = &random_word;
+        $url .= "%2B$word+";
+    }
+    $url =~ s/\+$//;
+    $url =~ s/\&/\\&/g;
 
-	#warn "running lynx -dump $url\n";
+    #warn "running lynx -dump $url\n";
 
-	my $output = `lynx -dump $url`;
+    my $output = `lynx -dump $url`;
 
-	#open (TMP,">tmp.dump");print TMP $output;close TMP;
+    #open (TMP,">tmp.dump");print TMP $output;close TMP;
 
-	if ($output =~ /AltaVista found no document matching your query/) {
+    if ($output =~ /AltaVista found no document matching your query/) {
 
-	} else {
-		$url =~ s/\\&/\&/g;
-		print "$try_num: $url\n";
-	}
+    } else {
+        $url =~ s/\\&/\&/g;
+        print "$try_num: $url\n";
+    }
 }
 
 sub random_word {

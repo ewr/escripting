@@ -35,9 +35,9 @@ $player = "/home/eric/scripts/eMp3/player";
 
 # server <-> client
 $handle = tie %shared,'IPC::Shareable','eMp3',{
-	exclusive	=> 0, 
-	create		=> 1, 
-	destroy		=> 1
+    exclusive	=> 0, 
+    create		=> 1, 
+    destroy		=> 1
 };
 
 $SIG{INT} = \&kill_sucker;
@@ -49,51 +49,51 @@ $shared{songs} = '';
 #----------
 
 while (1) {
-	local $SIG{ALRM} = \&do_stuff;
-	sleep;
+    local $SIG{ALRM} = \&do_stuff;
+    sleep;
 }
 
 #----------
 
 sub do_stuff {
-	local $SIG{ALRM} = \&do_stuff;
-	my $command = $shared{control};
-	if ($command eq"play") {
-		&play;
-	} elsif ($command eq"next") {
-		$shared{message}{$shared{player_pid}} = "next";
-		kill 12, $e{player_pid};
-	} elsif ($command eq"rewind") {
-		$shared{message}{$shared{player_pid}} = "restart";
-		kill 12, $shared{player_pid};
-	} else {
-		warn "unrecognized command: $command\n";
-	}
+    local $SIG{ALRM} = \&do_stuff;
+    my $command = $shared{control};
+    if ($command eq"play") {
+        &play;
+    } elsif ($command eq"next") {
+        $shared{message}{$shared{player_pid}} = "next";
+        kill 12, $e{player_pid};
+    } elsif ($command eq"rewind") {
+        $shared{message}{$shared{player_pid}} = "restart";
+        kill 12, $shared{player_pid};
+    } else {
+        warn "unrecognized command: $command\n";
+    }
 }
 
 #----------
 
 sub play {
-	while (my $song = ${$shared{songs}}[$shared{current_num}]) {
-		$shared{current_song} = $song;
-		`$player`;
-		$shared{current_num}++;
-	}
+    while (my $song = ${$shared{songs}}[$shared{current_num}]) {
+        $shared{current_song} = $song;
+        `$player`;
+        $shared{current_num}++;
+    }
 }
 
 #----------
 
 sub record_pid {
-	$shared{server_pid} = $$;
+    $shared{server_pid} = $$;
 
-	open (PID_FILE, ">/tmp/eMp3.pid");
-		print PID_FILE $$;
-	close PID_FILE;	
+    open (PID_FILE, ">/tmp/eMp3.pid");
+        print PID_FILE $$;
+    close PID_FILE;	
 }
 
 #----------
 
 sub kill_sucker {
-	`rm /tmp/eMp3.pid`;
-	die "$$ dying\n";
+    `rm /tmp/eMp3.pid`;
+    die "$$ dying\n";
 }

@@ -38,13 +38,13 @@ use Date::Format;
 #use vars qw($gui $grab $win $ts %db %cfg);
 
 %cfg = (
-	db	=> {
-		host	=> "localhost",
-		db		=> "eCam",
-		tbl		=> "images",
-		user	=> "eCam",
-		passwd	=> "foomiser",
-	},	
+    db	=> {
+        host	=> "localhost",
+        db		=> "eCam",
+        tbl		=> "images",
+        user	=> "eCam",
+        passwd	=> "foomiser",
+    },	
 );
 
 #--------------------#
@@ -61,9 +61,9 @@ Gtk::Widget->set_default_visual(Gtk::Gdk::Rgb->get_visual());
 #-------------#
 
 {
-	Imlib2::add_path_to_font_path("/usr/lib/X11/fonts/ttf/");
-	my $font = Imlib2::load_font("pabloco_/14");
-	Imlib2::context_set_font($font);
+    Imlib2::add_path_to_font_path("/usr/lib/X11/fonts/ttf/");
+    my $font = Imlib2::load_font("pabloco_/14");
+    Imlib2::context_set_font($font);
 }
 
 #------------#
@@ -71,11 +71,11 @@ Gtk::Widget->set_default_visual(Gtk::Gdk::Rgb->get_visual());
 #------------#
 
 $db{h} = DBI->connect(
-	"DBI:mysql:$cfg{db}{db}:$cfg{db}{host}",$cfg{db}{user},$cfg{db}{passwd}
+    "DBI:mysql:$cfg{db}{db}:$cfg{db}{host}",$cfg{db}{user},$cfg{db}{passwd}
 ) or die "couldn't connect mysql: $!\n";
 
 $db{insert} = $db{h}->prepare("
-	insert into $cfg{db}{tbl}(ts,caption,img) values(?,?,?)
+    insert into $cfg{db}{tbl}(ts,caption,img) values(?,?,?)
 ");
 
 #------------------#
@@ -83,14 +83,14 @@ $db{insert} = $db{h}->prepare("
 #------------------#
 
 {
-	$grab = new Video::Capture::V4l or die "Unable to open Videodevice: $!";
+    $grab = new Video::Capture::V4l or die "Unable to open Videodevice: $!";
 
-	my $channel = $grab->channel (1);
-	my $tuner = $grab->tuner (0);
-	$tuner->mode(TUNER_NTSC);
-	$channel->norm(MODE_NTSC);
-	$tuner->set;
-	$channel->set;
+    my $channel = $grab->channel (1);
+    my $tuner = $grab->tuner (0);
+    $tuner->mode(TUNER_NTSC);
+    $channel->norm(MODE_NTSC);
+    $tuner->set;
+    $channel->set;
 }
 
 
@@ -112,144 +112,144 @@ Gtk->main;
 #-------------#
 
 sub refresh_image {
-	Imlib2::free_image_and_decache;
-	&take_image;
+    Imlib2::free_image_and_decache;
+    &take_image;
 }
 
 #----------
 
 sub take_image {
-	$ts = time;
+    $ts = time;
 
-	my $raw = $grab->capture(0,320,240);
-	$grab->sync(0);
+    my $raw = $grab->capture(0,320,240);
+    $grab->sync(0);
 
-	my ($data,$count) = (undef,0);
+    my ($data,$count) = (undef,0);
 
-	while (my $in = substr($raw,($count*3),3)) {
-		my $out = pack("C*",
-			ord(substr($in,0,1)),
-			ord(substr($in,1,1)),
-			ord(substr($in,2,1)),
-			ord(0xff000000)
-		);
-		$count++;
-		$data .= $out;
-	}
+    while (my $in = substr($raw,($count*3),3)) {
+        my $out = pack("C*",
+            ord(substr($in,0,1)),
+            ord(substr($in,1,1)),
+            ord(substr($in,2,1)),
+            ord(0xff000000)
+        );
+        $count++;
+        $data .= $out;
+    }
 
-	my $img = Imlib2::create_image_using_data(320,240,$data);
-	Imlib2::set_context($img);
+    my $img = Imlib2::create_image_using_data(320,240,$data);
+    Imlib2::set_context($img);
 
-	Imlib2::context_set_color(0,0,0,150);
-	Imlib2::text_draw(18,218,time2str("%Y/%m/%d %r",time));
+    Imlib2::context_set_color(0,0,0,150);
+    Imlib2::text_draw(18,218,time2str("%Y/%m/%d %r",time));
 
-	Imlib2::context_set_color(255,255,255,255);
-	Imlib2::text_draw(17,217,time2str("%Y/%m/%d %r",time));
+    Imlib2::context_set_color(255,255,255,255);
+    Imlib2::text_draw(17,217,time2str("%Y/%m/%d %r",time));
 
-	$gui->{main}{ext}{left}{ts}->set_text("Time: ".time2str("%Y/%m/%d %r",$ts));
+    $gui->{main}{ext}{left}{ts}->set_text("Time: ".time2str("%Y/%m/%d %r",$ts));
 
-	&render;
+    &render;
 }
 
 #----------
 
 sub upload_image {
-	my $caption = $gui->{main}{ext}{left}{cframe}{caption}->get_chars(0,-1);
+    my $caption = $gui->{main}{ext}{left}{cframe}{caption}->get_chars(0,-1);
 
-	Imlib2::save_image("/tmp/geCam.jpg");
+    Imlib2::save_image("/tmp/geCam.jpg");
 
-	open(IMG,"/tmp/geCam.jpg");
-		my $img;
-		$img .= $_ while (<IMG>);
-	close IMG;
+    open(IMG,"/tmp/geCam.jpg");
+        my $img;
+        $img .= $_ while (<IMG>);
+    close IMG;
 
-	$db{insert}->execute($ts,$caption,$img);
+    $db{insert}->execute($ts,$caption,$img);
 }
 
 #----------
 
 sub startstop {
-	if ($cfg{running}) {
-		# stop auto mode
-		Gtk->timeout_remove($gui->{timer});
+    if ($cfg{running}) {
+        # stop auto mode
+        Gtk->timeout_remove($gui->{timer});
 
-		$gui->{main}{ext}{left}{status}->set_text("Current Status: Manual");
+        $gui->{main}{ext}{left}{status}->set_text("Current Status: Manual");
 
-		$cfg{running} = 0;
-	} else {
-		# start auto-mode
-		$gui->{timer} = Gtk->timeout_add(30000,\&take_and_upload);
-		$gui->{main}{ext}{left}{status}->set_text("Current Status: Auto");
-		$cfg{running} = 1;
-	}
+        $cfg{running} = 0;
+    } else {
+        # start auto-mode
+        $gui->{timer} = Gtk->timeout_add(30000,\&take_and_upload);
+        $gui->{main}{ext}{left}{status}->set_text("Current Status: Auto");
+        $cfg{running} = 1;
+    }
 }
 
 #----------
 
 sub take_and_upload {
-	&take_image;
-	&upload_image;
+    &take_image;
+    &upload_image;
 
-	return 1;
+    return 1;
 }
 
 #----------
 
 sub build_gui {
-	$gui->create_window(
-		name		=> "main",
-		type		=> "toplevel",
-		title		=> "geCam",
-		d_size		=> [400,240],
-		destroy		=> sub { Gtk->exit(0) },
-		contents	=> [
-			['ext','HBox',[0,10],[
-				['bbar','VButtonBox'],
-				['left','VBox',[0,10],[
-					['status','Label',['Current Status: Manual']],
-					['ts','Label',['Time: XXXXXXXXXX']],
-					['cframe','Frame',['Caption:'],[
-						['caption','Text',[undef,undef]],
-					]],
-				]],
-				['frame','Frame',['Current Image:']],
-			]],
-		],
-	);
+    $gui->create_window(
+        name		=> "main",
+        type		=> "toplevel",
+        title		=> "geCam",
+        d_size		=> [400,240],
+        destroy		=> sub { Gtk->exit(0) },
+        contents	=> [
+            ['ext','HBox',[0,10],[
+                ['bbar','VButtonBox'],
+                ['left','VBox',[0,10],[
+                    ['status','Label',['Current Status: Manual']],
+                    ['ts','Label',['Time: XXXXXXXXXX']],
+                    ['cframe','Frame',['Caption:'],[
+                        ['caption','Text',[undef,undef]],
+                    ]],
+                ]],
+                ['frame','Frame',['Current Image:']],
+            ]],
+        ],
+    );
 
-	$gui->{main}->set_policy(0,0,1);
+    $gui->{main}->set_policy(0,0,1);
 
-	$gui->{main}{ext}{bbar}->set_spacing_default(1);
+    $gui->{main}{ext}{bbar}->set_spacing_default(1);
 
-	$gui->button_bar($gui->{main}{ext}{bbar},
-		["Refresh",		\&refresh_image],
-		["Upload",		sub {&upload_image;&refresh_image;}],
-		["Start/Stop",	\&startstop],
-		["Exit",		sub { Gtk->exit(0) }],
-	);
+    $gui->button_bar($gui->{main}{ext}{bbar},
+        ["Refresh",		\&refresh_image],
+        ["Upload",		sub {&upload_image;&refresh_image;}],
+        ["Start/Stop",	\&startstop],
+        ["Exit",		sub { Gtk->exit(0) }],
+    );
 
-	$gui->{main}{ext}{left}{cframe}{caption}->set_editable(1);
+    $gui->{main}{ext}{left}{cframe}{caption}->set_editable(1);
 
-	$gui->{da} = new Gtk::DrawingArea();
-	$gui->{da}->size(320,240);
-	$gui->{da}->set_events("button_press_mask");
-	$gui->{main}{ext}{frame}->add($gui->{da});
-	$gui->{da}->realize;
-	$gui->{da}->show;
+    $gui->{da} = new Gtk::DrawingArea();
+    $gui->{da}->size(320,240);
+    $gui->{da}->set_events("button_press_mask");
+    $gui->{main}{ext}{frame}->add($gui->{da});
+    $gui->{da}->realize;
+    $gui->{da}->show;
 
-	my $cmap = $gui->{da}->get_colormap()->XCOLORMAP;
-	my $visual = $gui->{da}->get_visual()->XVISUAL;
-	my $display = $gui->{da}->window->XDISPLAY;
-	Imlib2::context_set_display($display);
-	Imlib2::context_set_colormap($cmap);
-	Imlib2::context_set_visual($visual);
+    my $cmap = $gui->{da}->get_colormap()->XCOLORMAP;
+    my $visual = $gui->{da}->get_visual()->XVISUAL;
+    my $display = $gui->{da}->window->XDISPLAY;
+    Imlib2::context_set_display($display);
+    Imlib2::context_set_colormap($cmap);
+    Imlib2::context_set_visual($visual);
 
-	my $bgcolor = Gtk::Gdk::Color->parse_color('white');
-	$bgcolor = $gui->{da}->window->get_colormap()->color_alloc($bgcolor);
-	$gui->{da}->window->set_background($bgcolor);
+    my $bgcolor = Gtk::Gdk::Color->parse_color('white');
+    $bgcolor = $gui->{da}->window->get_colormap()->color_alloc($bgcolor);
+    $gui->{da}->window->set_background($bgcolor);
 
-	Imlib2::context_set_drawable($gui->{da}->window->XWINDOW);
-	$gui->{da}->signal_connect('expose_event', \&render);
+    Imlib2::context_set_drawable($gui->{da}->window->XWINDOW);
+    $gui->{da}->signal_connect('expose_event', \&render);
 }
 
 #----------

@@ -19,301 +19,301 @@ use strict;
 use vars qw( $cfg $config $args $parser $cache );
 
 $cfg = {
-	config	=> "/home/eric/projects/podcast/config",
+    config	=> "/home/eric/projects/podcast/config",
 };
 
 #----------
 
 {
-	$parser = new XML::DOM::Parser;
+    $parser = new XML::DOM::Parser;
 #	$parser = new XML::RSS::Parser;
 
-	# -- open our config file -- #
-	
-	$config = XML::Simple::XMLin($cfg->{config});
+    # -- open our config file -- #
+    
+    $config = XML::Simple::XMLin($cfg->{config});
 
-	# -- open our cache -- #
-	
-	$cache = Cache::File->new( cache_root => $config->{cache} );
-	
-	# -- run through our feeds -- #
+    # -- open our cache -- #
+    
+    $cache = Cache::File->new( cache_root => $config->{cache} );
+    
+    # -- run through our feeds -- #
 
-	while ( my ($n,$f) = each %{ $config->{feed} } ) {
-		next if ( $f->{disabled} );
-		
-		warn "feed name: $n\n";
+    while ( my ($n,$f) = each %{ $config->{feed} } ) {
+        next if ( $f->{disabled} );
+        
+        warn "feed name: $n\n";
 
-		my $rss = URI::Fetch->fetch( $f->{url} , {
-			Cache	=> $cache
-		} ) or die URI::Fetch->errstr();
+        my $rss = URI::Fetch->fetch( $f->{url} , {
+            Cache	=> $cache
+        } ) or die URI::Fetch->errstr();
 
-		if ( $rss->status == URI::Fetch::URI_OK() ) {
-			# go on to main handling
-			my $items = &parse_feed( $f , $rss );
-			&handle_items( $f , $items );
-		} elsif ( $rss->status == URI::Fetch::URI_NOT_MODIFIED() ) {
-			# do nothing
-		} elsif ( $rss->status == URI::Fetch::URI_MOVED_PERMANENTLY() ) {
-			# we need to update the config file
-			warn "\n\nMOVING RSS URL FOR $n\nURI: ".$rss->uri."\n";
-			$f->{oldurl} = $f->{url};
-			$f->{url} = $rss->uri;
-		} elsif ( $rss->status == URI::Fetch::URI_GONE() ) {
-			# we'll disable it in the config file, but leave it in there
-			$f->{ disabled } = 1;
-		} else {
-			die "odd status code: $rss->status\n";
-		}
-	}
+        if ( $rss->status == URI::Fetch::URI_OK() ) {
+            # go on to main handling
+            my $items = &parse_feed( $f , $rss );
+            &handle_items( $f , $items );
+        } elsif ( $rss->status == URI::Fetch::URI_NOT_MODIFIED() ) {
+            # do nothing
+        } elsif ( $rss->status == URI::Fetch::URI_MOVED_PERMANENTLY() ) {
+            # we need to update the config file
+            warn "\n\nMOVING RSS URL FOR $n\nURI: ".$rss->uri."\n";
+            $f->{oldurl} = $f->{url};
+            $f->{url} = $rss->uri;
+        } elsif ( $rss->status == URI::Fetch::URI_GONE() ) {
+            # we'll disable it in the config file, but leave it in there
+            $f->{ disabled } = 1;
+        } else {
+            die "odd status code: $rss->status\n";
+        }
+    }
 }
 
 #----------
 
 sub parse_feed {
-	my ($f,$rss) = @_;
+    my ($f,$rss) = @_;
 
-	my $content = $rss->content;
+    my $content = $rss->content;
 
-	my $xml = $parser->parse($rss->content,ProtocolEncoding=>"ISO-8859-1");
+    my $xml = $parser->parse($rss->content,ProtocolEncoding=>"ISO-8859-1");
 
-	# -- parse through items in the feed -- #
+    # -- parse through items in the feed -- #
 
-	my $items = [];
+    my $items = [];
 
-	foreach my $item ( $xml->getElementsByTagName('item') ) {
-		# -- first we'll make a hash with title/desc/etc -- #
-		my $info = {};
-		foreach my $c ( $item->getChildNodes ) {
-			next if ($c->getNodeName !~ /
-				^(
-					title
-					| link
-					| description
-					| pubdate
-					| dc:date
-					| dcterms:created
-				)
-			/ix);
+    foreach my $item ( $xml->getElementsByTagName('item') ) {
+        # -- first we'll make a hash with title/desc/etc -- #
+        my $info = {};
+        foreach my $c ( $item->getChildNodes ) {
+            next if ($c->getNodeName !~ /
+                ^(
+                    title
+                    | link
+                    | description
+                    | pubdate
+                    | dc:date
+                    | dcterms:created
+                )
+            /ix);
 
-			my $name = $1;
+            my $name = $1;
 
-			my $text = $c->getFirstChild->getData;
+            my $text = $c->getFirstChild->getData;
 
-			# clean it up a bit
-			$text =~ s!(?:^\s+|\s+$)!!g;
+            # clean it up a bit
+            $text =~ s!(?:^\s+|\s+$)!!g;
 
-			$info->{ lc($name) } = $text;
-		}
+            $info->{ lc($name) } = $text;
+        }
 
-		# -- now handle some preferred fields -- #
+        # -- now handle some preferred fields -- #
 
-		foreach my $a (
-			['created','dcterms:created','dc:date','pubdate']
-		) {
-			my $f = shift @$a;
-			foreach my $p (@$a) {
-				next if (!$info->{$p});
-				$info->{$f} = $info->{$p};
-				last;
-			}
-		}
+        foreach my $a (
+            ['created','dcterms:created','dc:date','pubdate']
+        ) {
+            my $f = shift @$a;
+            foreach my $p (@$a) {
+                next if (!$info->{$p});
+                $info->{$f} = $info->{$p};
+                last;
+            }
+        }
 
-		# -- now handle the enclosure -- #
-		{
-			my $elist = $item->getElementsByTagName('enclosure');
+        # -- now handle the enclosure -- #
+        {
+            my $elist = $item->getElementsByTagName('enclosure');
 
-			# this list should only have one member
-			warn "item has more than one enclosure?\n" 
-				if ($elist->getLength > 1);
+            # this list should only have one member
+            warn "item has more than one enclosure?\n" 
+                if ($elist->getLength > 1);
 
-			my $enc = $elist->item(0);
+            my $enc = $elist->item(0);
 
-			if ($enc) {
-				my $ei = $info->{enclosure} = {};
+            if ($enc) {
+                my $ei = $info->{enclosure} = {};
 
-				my $attributes = $enc->getAttributes;
-				if ($attributes) {
-					for my $i ( 0 .. $attributes->getLength-1 ) {
-						my $attr = $attributes->item($i);
-						$ei->{ lc($attr->getName) } = $attr->getValue;
-					}
-				}
-			} else {
-				# boo...  item has no audio
-			}
-		}
+                my $attributes = $enc->getAttributes;
+                if ($attributes) {
+                    for my $i ( 0 .. $attributes->getLength-1 ) {
+                        my $attr = $attributes->item($i);
+                        $ei->{ lc($attr->getName) } = $attr->getValue;
+                    }
+                }
+            } else {
+                # boo...  item has no audio
+            }
+        }
 
-		push @$items , $info;
-	}
+        push @$items , $info;
+    }
 
-	return $items;
+    return $items;
 }
 
 #----------
 
 sub handle_items {
-	my ($f,$items) = @_;
+    my ($f,$items) = @_;
 
-	# -- find out what files we already know about -- #
+    # -- find out what files we already know about -- #
 
-	my $known;
-	if ( my $blob = $cache->get( "known_files." . $f->{url} ) ) {
-		$known = Storable::thaw( $blob );
-	} else {
-		$known = [];
-	}
+    my $known;
+    if ( my $blob = $cache->get( "known_files." . $f->{url} ) ) {
+        $known = Storable::thaw( $blob );
+    } else {
+        $known = [];
+    }
 
-	# -- get new files -- #
+    # -- get new files -- #
 
-	my $current = [];
+    my $current = [];
 
-	# we assume that the podcast feed is always going to have our newest 
-	# file(s), so we start there with the idea that if we don't reach our 
-	# count we'll keep around a couple we already know
+    # we assume that the podcast feed is always going to have our newest 
+    # file(s), so we start there with the idea that if we don't reach our 
+    # count we'll keep around a couple we already know
 
-	{
-		my $c = 0;
-		foreach my $i (@$items) {
+    {
+        my $c = 0;
+        foreach my $i (@$items) {
 #			warn "item date: $i->{created}\n";
 
-			my $date 
-				= DateTime::Format::HTTP->parse_datetime($i->{created});
+            my $date 
+                = DateTime::Format::HTTP->parse_datetime($i->{created});
 
 #			print "date: " . $date->strftime("%Y/%m/%d") . "\n";
-			
-			if ($i->{enclosure} && $c < $f->{count}) {
-				if ( &download_audio($f,$i,$date) ) {
-					warn "onto current: " . &local_file_from_url($i) . "\n";
-					push @$current, [ $date->epoch , &local_file_from_url($i) ];
-					$c++;
-				} else {
-					# nothing
-				}
-			} else {
-				# no audio or we've reached our limit	
-			}
-		}
+            
+            if ($i->{enclosure} && $c < $f->{count}) {
+                if ( &download_audio($f,$i,$date) ) {
+                    warn "onto current: " . &local_file_from_url($i) . "\n";
+                    push @$current, [ $date->epoch , &local_file_from_url($i) ];
+                    $c++;
+                } else {
+                    # nothing
+                }
+            } else {
+                # no audio or we've reached our limit	
+            }
+        }
 
-		# map curent files to filenames
-		my $files = {};
-		%$files = map { $_->[1] => 1 } @$current;
+        # map curent files to filenames
+        my $files = {};
+        %$files = map { $_->[1] => 1 } @$current;
 
-		# -- fill in missing current files -- #
+        # -- fill in missing current files -- #
 
-		if ($c < $f->{count}) {
-			foreach my $k (@$known) {
-				next if ($files->{ $k->[1] });
-				warn "adding $k->[1] to current\n";
-				push @$current, $k;
-				$c++;
-				last unless ($c < $f->{count});
-			}
-		}
+        if ($c < $f->{count}) {
+            foreach my $k (@$known) {
+                next if ($files->{ $k->[1] });
+                warn "adding $k->[1] to current\n";
+                push @$current, $k;
+                $c++;
+                last unless ($c < $f->{count});
+            }
+        }
 
-		# (refresh) map curent files to filenames
-		%$files = map { $_->[1] => 1 } @$current;
+        # (refresh) map curent files to filenames
+        %$files = map { $_->[1] => 1 } @$current;
 
-		# -- delete old known files -- #
+        # -- delete old known files -- #
 
-		foreach my $k (@$known) {
-			# skip it if the file name's in current
-			next if ($files->{ $k->[1] });
+        foreach my $k (@$known) {
+            # skip it if the file name's in current
+            next if ($files->{ $k->[1] });
 
-			my $lfile = $config->{local} . "/" . $k->[1];
-			# if it's not, out it goes
-			warn "deleting $lfile\n";
-			#`rm $lfile`;
-		}
-	}
-	# -- store a list of what we know -- #
+            my $lfile = $config->{local} . "/" . $k->[1];
+            # if it's not, out it goes
+            warn "deleting $lfile\n";
+            #`rm $lfile`;
+        }
+    }
+    # -- store a list of what we know -- #
 
-	$cache->set( "known_files." . $f->{url} , Storable::nfreeze( $current ) );
-	
-	return 1;
+    $cache->set( "known_files." . $f->{url} , Storable::nfreeze( $current ) );
+    
+    return 1;
 }
 
 #----------
 
 sub download_audio {
-	my ($f,$i,$date) = @_;
+    my ($f,$i,$date) = @_;
 
-	# -- split the filename off the url -- #
+    # -- split the filename off the url -- #
 
-	my $file = $config->{local} . "/" . &local_file_from_url($i);
+    my $file = $config->{local} . "/" . &local_file_from_url($i);
 #	warn "file: $file\n";
 
-	# -- first make sure we don't already have the file -- #
+    # -- first make sure we don't already have the file -- #
 
-	return 1 if (-e $file);
+    return 1 if (-e $file);
 
-	# -- grab the file -- #
+    # -- grab the file -- #
 
-	`wget -O $file $i->{enclosure}{url}`;
+    `wget -O $file $i->{enclosure}{url}`;
 
-	# -- change file info if desired -- #
+    # -- change file info if desired -- #
 
-	my $mp3 = MP3::Mplib->new($file);
+    my $mp3 = MP3::Mplib->new($file);
 
-	my $id3v2 = $mp3->get_v2tag();
+    my $id3v2 = $mp3->get_v2tag();
 
-	foreach my $key (['title','TIT2'],['artist','TPE1'],['album','TALB']) {
-		next if (!$f->{ $key->[0] });
+    foreach my $key (['title','TIT2'],['artist','TPE1'],['album','TALB']) {
+        next if (!$f->{ $key->[0] });
 
-		my $value = $date->strftime($f->{ $key->[0] });
-		
-		$value =~ s!#T#!$i->{title}!i;
-		$value =~ s!#N#!$i->{name}!i;
+        my $value = $date->strftime($f->{ $key->[0] });
+        
+        $value =~ s!#T#!$i->{title}!i;
+        $value =~ s!#N#!$i->{name}!i;
 
-		$id3v2->{ $key->[1] } = $value;
-	}
+        $id3v2->{ $key->[1] } = $value;
+    }
 
-	$mp3->set_v2tag($id3v2);
+    $mp3->set_v2tag($id3v2);
 
-	return 1;
+    return 1;
 }
 
 #----------
 
 sub local_file_from_url {
-	my $i = shift;
+    my $i = shift;
 
-	my ($file) = $i->{enclosure}{url} =~ m!.*/([^/]+)$!;
+    my ($file) = $i->{enclosure}{url} =~ m!.*/([^/]+)$!;
 
-	return $file;
+    return $file;
 }
 
 #----------
 
 sub handle_feed_rai {
-	my ($f,$rss) = @_;
+    my ($f,$rss) = @_;
 
-	# stupid XML::RAI and XML::RSS::Parser don't pass any extra args on 
-	# to XML::Parser or XML::Expat, so we'll have to go around them
+    # stupid XML::RAI and XML::RSS::Parser don't pass any extra args on 
+    # to XML::Parser or XML::Expat, so we'll have to go around them
 
-	my $xml = 
-		XML::RAI::new(
-			$parser->parse($rss->content,ProtocolEncoding=>"ISO-8859-1")
-		);
+    my $xml = 
+        XML::RAI::new(
+            $parser->parse($rss->content,ProtocolEncoding=>"ISO-8859-1")
+        );
 
 #	my $xml = XML::RAI->parse($rss->content,ProtocolEncoding=>"ISO-8859-1");
 
-	my $items = [];
+    my $items = [];
 
-	foreach my $item ( @{ $xml->items } ) {
-		my $info = {};
-		foreach my $t ('title','link','description','created') {
-			$info->{ $t } = $item->$t;
-		}
+    foreach my $item ( @{ $xml->items } ) {
+        my $info = {};
+        foreach my $t ('title','link','description','created') {
+            $info->{ $t } = $item->$t;
+        }
 
-		warn "item: $info->{title}\n";
-	}
+        warn "item: $info->{title}\n";
+    }
 }
 
 package XML::RSS::Parser;
 
 sub parse {
-	my $class = shift;
-	$class->rss_normalize($class->SUPER::parse(@_));
+    my $class = shift;
+    $class->rss_normalize($class->SUPER::parse(@_));
 }
 
 1;

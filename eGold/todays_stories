@@ -47,64 +47,64 @@ die "Usage: ./todays_stories (output file) (locale)\n" unless (@ARGV >= 1);
 ($cfg{input}{file},$cfg{input}{locale}) = @ARGV;
 
 MAIN: {
-	my $locale_sql = "and article.locale = '$cfg{input}{locale}'"
-		if ($cfg{input}{locale});
+    my $locale_sql = "and article.locale = '$cfg{input}{locale}'"
+        if ($cfg{input}{locale});
 
-	my $get_story_details = $db->prepare("
-		select 
-			article.id,article.headline,article.subtitle,article.author,
-			article.locale,article.written,art_topic_lnk.topic_id 
-		from article,art_topic_lnk
-		where 
-			article.id = art_topic_lnk.article_id and 
-			released != 0 and 
-			state != 'WITHDRAWN'
-			$locale_sql
-		order by article.released desc limit 30
-	");
+    my $get_story_details = $db->prepare("
+        select 
+            article.id,article.headline,article.subtitle,article.author,
+            article.locale,article.written,art_topic_lnk.topic_id 
+        from article,art_topic_lnk
+        where 
+            article.id = art_topic_lnk.article_id and 
+            released != 0 and 
+            state != 'WITHDRAWN'
+            $locale_sql
+        order by article.released desc limit 30
+    ");
 
-	$get_story_details->execute();
+    $get_story_details->execute();
 
-	warn "got: ".$get_story_details->rows."\n";
+    warn "got: ".$get_story_details->rows."\n";
 
-	my %s;
-	$get_story_details->bind_columns(
-		\$s{id},\$s{headline},\$s{subtitle},\$s{author},
-		\$s{locale},\$s{written},\$s{topic}
-	);
+    my %s;
+    $get_story_details->bind_columns(
+        \$s{id},\$s{headline},\$s{subtitle},\$s{author},
+        \$s{locale},\$s{written},\$s{topic}
+    );
 
-	my (%d,$html);
+    my (%d,$html);
 
-	$html = qq(
-		<br><b>).time2str("%B %d, %Y",(time+54000)).qq(</b>
-		<p>
-	);
+    $html = qq(
+        <br><b>).time2str("%B %d, %Y",(time+54000)).qq(</b>
+        <p>
+    );
 
-	my $count;
-	while ($get_story_details->fetch) {
-		next if ($d{$s{id}} || $cfg{exclude}{$s{topic}});
-		my $hhtml = $core->get_template("headline.".$cfg{input}{locale});
+    my $count;
+    while ($get_story_details->fetch) {
+        next if ($d{$s{id}} || $cfg{exclude}{$s{topic}});
+        my $hhtml = $core->get_template("headline.".$cfg{input}{locale});
 
-		foreach (
-			'id','headline','subtitle','author','locale','written','topic'
-		) {
-			$hhtml =~ s!#{$_}!$s{$_}!gi;
-		}
+        foreach (
+            'id','headline','subtitle','author','locale','written','topic'
+        ) {
+            $hhtml =~ s!#{$_}!$s{$_}!gi;
+        }
 
-		$html .= $hhtml;
+        $html .= $hhtml;
 
-		$d{$s{id}}++;
-		$count++;
-		last if ($count == 15);
-	}
+        $d{$s{id}}++;
+        $count++;
+        last if ($count == 15);
+    }
 
-	$core->write_file(
-		name	=> $cfg{input}{file},
-		data	=> $html,
-	);
+    $core->write_file(
+        name	=> $cfg{input}{file},
+        data	=> $html,
+    );
 
-	$core->upload(@files);
-	$core->save_memory(\%stored);
+    $core->upload(@files);
+    $core->save_memory(\%stored);
 }
 
 #-------------#

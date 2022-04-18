@@ -41,40 +41,40 @@ use ObjGTK;
 #----------
 
 %cfg = (
-	host	=> "127.0.0.1",
-	port	=> "3307",
-	db		=> "whatsplaying",
-	user	=> "whatsplaying",
-	pass	=> "sh0wmes0ng5",
+    host	=> "127.0.0.1",
+    port	=> "3307",
+    db		=> "whatsplaying",
+    user	=> "whatsplaying",
+    pass	=> "sh0wmes0ng5",
 
-	vmode	=> "raw",
+    vmode	=> "raw",
 );
 
 #----------
 
 $db = DBI->connect(
-	"DBI:mysql:$cfg{db}:$cfg{host}:$cfg{port}",$cfg{user},$cfg{pass}
+    "DBI:mysql:$cfg{db}:$cfg{host}:$cfg{port}",$cfg{user},$cfg{pass}
 ) or die "could not connect mysql: ".DBI->errstr."\n";
 
 $get{all} = $db->prepare("
-	select id,file,title,artist from songs 
-	order by file
+    select id,file,title,artist from songs 
+    order by file
 ");
 
 $get{last} = $db->prepare("
-	select songs.id,songs.file,songs.title,songs.artist 
-	from songs,plays 
-	where songs.id = plays.song
-	order by plays.ts desc limit 0,50
+    select songs.id,songs.file,songs.title,songs.artist 
+    from songs,plays 
+    where songs.id = plays.song
+    order by plays.ts desc limit 0,50
 ");
 
 $get{raw} = $db->prepare("
-	select id,file,title,artist from songs 
-	where title is NULL and artist is NULL order by file
+    select id,file,title,artist from songs 
+    where title is NULL and artist is NULL order by file
 ");
 
 $insert = $db->prepare("
-	update songs set artist = ?, title = ? where id = ?
+    update songs set artist = ?, title = ? where id = ?
 ");
 
 $gui = ObjGTK->start;
@@ -88,172 +88,172 @@ $gui->go;
 #----------
 
 sub quit {
-	Gtk->exit(0);
+    Gtk->exit(0);
 }
 
 #----------
 
 sub set_vmode {
-	my ($b,$vm) = @_;
+    my ($b,$vm) = @_;
 
-	if ($b->active) {
-		$cfg{vmode} = $vm;
-	} else {
-		# this is the deselected widget
-		return;
-	}
+    if ($b->active) {
+        $cfg{vmode} = $vm;
+    } else {
+        # this is the deselected widget
+        return;
+    }
 
-	# rewrite the selection list
-	&refresh_songs;
+    # rewrite the selection list
+    &refresh_songs;
 }
 
 #----------
 
 sub refresh_songs {
-	# freeze the list display
-	$gui->{main}->{slist}->freeze();
+    # freeze the list display
+    $gui->{main}->{slist}->freeze();
 
-	# clear the current list
-	$gui->{main}->{slist}->clear();
+    # clear the current list
+    $gui->{main}->{slist}->clear();
 
-	# execute our fetching query
-	$get{$cfg{vmode}}->execute;
+    # execute our fetching query
+    $get{$cfg{vmode}}->execute;
 
-	my ($i,$f,$t,$a);
-	$get{$cfg{vmode}}->bind_columns(\$i,\$f,\$t,\$a);
+    my ($i,$f,$t,$a);
+    $get{$cfg{vmode}}->bind_columns(\$i,\$f,\$t,\$a);
 
-	while ($get{$cfg{vmode}}->fetch) {
-		%{$file{$i}} = (a=>$a,t=>$t);
+    while ($get{$cfg{vmode}}->fetch) {
+        %{$file{$i}} = (a=>$a,t=>$t);
 
-		$file{$i}{f} = (length($f)>45)?"...".substr($f,-45):$f;
+        $file{$i}{f} = (length($f)>45)?"...".substr($f,-45):$f;
 
-		$gui->{main}->{slist}->append($i,$file{$i}{f},$a,$t);
-	}
+        $gui->{main}->{slist}->append($i,$file{$i}{f},$a,$t);
+    }
 
-	# update the display
-	$gui->{main}->{slist}->thaw();
+    # update the display
+    $gui->{main}->{slist}->thaw();
 }
 
 #----------
 
 sub update_song {
-	return unless ($cfg{current}{id});
+    return unless ($cfg{current}{id});
 
-	my $a = $gui->{main}->{artist}->get_text();
-	my $t = $gui->{main}->{title}->get_text();
+    my $a = $gui->{main}->{artist}->get_text();
+    my $t = $gui->{main}->{title}->get_text();
 
-	$insert->execute($a,$t,$cfg{current}{id});
+    $insert->execute($a,$t,$cfg{current}{id});
 
-	$gui->{main}->{slist}->set_text($cfg{current}{row},2,$a);
-	$gui->{main}->{slist}->set_text($cfg{current}{row},3,$t);
+    $gui->{main}->{slist}->set_text($cfg{current}{row},2,$a);
+    $gui->{main}->{slist}->set_text($cfg{current}{row},3,$t);
 
-	$gui->{main}->{slist}->select_row($cfg{current}{row}+1,0);
+    $gui->{main}->{slist}->select_row($cfg{current}{row}+1,0);
 }
 
 #----------
 
 sub change_active_song {
-	my ($widget,$row,$column,$event) = @_;
+    my ($widget,$row,$column,$event) = @_;
 
-	my $id = $widget->get_text($row,0);
+    my $id = $widget->get_text($row,0);
 
-	$cfg{current}{id} = $id;
-	$cfg{current}{row} = $row;
+    $cfg{current}{id} = $id;
+    $cfg{current}{row} = $row;
 
-	$gui->{main}->{file}->set_text($file{$id}{f});
+    $gui->{main}->{file}->set_text($file{$id}{f});
 
-	$gui->{main}->{artist}->set_text($file{$id}{a})
-		if ($file{$id}{a});
+    $gui->{main}->{artist}->set_text($file{$id}{a})
+        if ($file{$id}{a});
 
-	$gui->{main}->{title}->set_text($file{$id}{t})
-		if ($file{$id}{t});
+    $gui->{main}->{title}->set_text($file{$id}{t})
+        if ($file{$id}{t});
 }
 
 #----------
 
 sub build_gui {
-	$gui->create_window(
-		name		=> "main",
-		type		=> "toplevel",
-		title		=> "gsonginfo",
-		d_size		=> [900,300],
-		destroy		=> \&quit,
-		contents	=> [
+    $gui->create_window(
+        name		=> "main",
+        type		=> "toplevel",
+        title		=> "gsonginfo",
+        d_size		=> [900,300],
+        destroy		=> \&quit,
+        contents	=> [
 
-		['','HBox',[],[
-			['','VBox',[],[
-				['menu','MenuBar',[],[
-					['exit','MenuItem',['Exit']],
-					['refresh','MenuItem',['Refresh']],
-				]],
-				['','Frame',['View Mode:'],[
-					['vmode','HBox',[]],
-				]],
-				['','Frame',['Song Details:'],[
-					['','VBox',[],[
-						['','Frame',['File'],[
-							['file','Label'],
-						]],
-						['','Frame',['Artist'],[
-							['artist','Entry']
-						]],
-						['','Frame',['Title'],[
-							['title','Entry']
-						]],
-						['b_update','Button',['Update']],
-					]],
-				]],
-			]],
-			['','ScrolledWindow',[],[
-				['slist','CList',[4]],
-			]],
-		]],
+        ['','HBox',[],[
+            ['','VBox',[],[
+                ['menu','MenuBar',[],[
+                    ['exit','MenuItem',['Exit']],
+                    ['refresh','MenuItem',['Refresh']],
+                ]],
+                ['','Frame',['View Mode:'],[
+                    ['vmode','HBox',[]],
+                ]],
+                ['','Frame',['Song Details:'],[
+                    ['','VBox',[],[
+                        ['','Frame',['File'],[
+                            ['file','Label'],
+                        ]],
+                        ['','Frame',['Artist'],[
+                            ['artist','Entry']
+                        ]],
+                        ['','Frame',['Title'],[
+                            ['title','Entry']
+                        ]],
+                        ['b_update','Button',['Update']],
+                    ]],
+                ]],
+            ]],
+            ['','ScrolledWindow',[],[
+                ['slist','CList',[4]],
+            ]],
+        ]],
 
-		],
-	);
+        ],
+    );
 
-	# create the vmode radio buttons
-	$gui->create_radiogroup(
-		$gui->{main}->{vmode},
-		['all','All Songs'],
-		['raw','No Titles'],
-		['last','Last Played'],
-	);
+    # create the vmode radio buttons
+    $gui->create_radiogroup(
+        $gui->{main}->{vmode},
+        ['all','All Songs'],
+        ['raw','No Titles'],
+        ['last','Last Played'],
+    );
 
-	# select the default vmode
-	$gui->{main}->{vmode}->{$cfg{vmode}}->set_state(1);
+    # select the default vmode
+    $gui->{main}->{vmode}->{$cfg{vmode}}->set_state(1);
 
-	# format our CList
-	$gui->{main}->{slist}->set_column_title(0,"ID");
-	$gui->{main}->{slist}->set_column_title(1,"File");
-	$gui->{main}->{slist}->set_column_title(2,"Artist");
-	$gui->{main}->{slist}->set_column_title(3,"Title");
+    # format our CList
+    $gui->{main}->{slist}->set_column_title(0,"ID");
+    $gui->{main}->{slist}->set_column_title(1,"File");
+    $gui->{main}->{slist}->set_column_title(2,"Artist");
+    $gui->{main}->{slist}->set_column_title(3,"Title");
 
-	$gui->{main}->{slist}->set_column_width(0,50);
-	$gui->{main}->{slist}->set_column_width(1,350);
-	$gui->{main}->{slist}->set_column_width(2,100);
-	$gui->{main}->{slist}->set_column_width(3,100);
+    $gui->{main}->{slist}->set_column_width(0,50);
+    $gui->{main}->{slist}->set_column_width(1,350);
+    $gui->{main}->{slist}->set_column_width(2,100);
+    $gui->{main}->{slist}->set_column_width(3,100);
 
-	$gui->{main}->{slist}->column_titles_show();
-	$gui->{main}->{slist}->column_titles_passive();
+    $gui->{main}->{slist}->column_titles_show();
+    $gui->{main}->{slist}->column_titles_passive();
 
-	$gui->{main}->{slist}->set_selection_mode('single');
+    $gui->{main}->{slist}->set_selection_mode('single');
 
-	$gui->{main}->{slist}->signal_connect('select_row',\&change_active_song);
+    $gui->{main}->{slist}->signal_connect('select_row',\&change_active_song);
 
-	$gui->{main}->{slist}->set_usize(600,0);
+    $gui->{main}->{slist}->set_usize(600,0);
 
-	# connect signals to our menu items
-	$gui->{main}->{menu}->{exit}->signal_connect('activate',\&quit);
-	$gui->{main}->{menu}->{refresh}->signal_connect('activate',\&refresh_songs);
+    # connect signals to our menu items
+    $gui->{main}->{menu}->{exit}->signal_connect('activate',\&quit);
+    $gui->{main}->{menu}->{refresh}->signal_connect('activate',\&refresh_songs);
 
-	# connect signals to view mode radio buttons
-	$gui->{main}->{vmode}->{all}->signal_connect('toggled',\&set_vmode,"all");
-	$gui->{main}->{vmode}->{last}->signal_connect('toggled',\&set_vmode,"last");
-	$gui->{main}->{vmode}->{raw}->signal_connect('toggled',\&set_vmode,"raw");
+    # connect signals to view mode radio buttons
+    $gui->{main}->{vmode}->{all}->signal_connect('toggled',\&set_vmode,"all");
+    $gui->{main}->{vmode}->{last}->signal_connect('toggled',\&set_vmode,"last");
+    $gui->{main}->{vmode}->{raw}->signal_connect('toggled',\&set_vmode,"raw");
 
-	# connect a signal to the update button
-	$gui->{main}->{b_update}->signal_connect('clicked',\&update_song);
+    # connect a signal to the update button
+    $gui->{main}->{b_update}->signal_connect('clicked',\&update_song);
 }
 
 #----------

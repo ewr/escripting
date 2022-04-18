@@ -41,16 +41,16 @@ use vars qw(%db %cfg %sockets);
 #----------
 
 %cfg = (
-	db_host	=> "",
-	db_type	=> "mysql",
-	db		=> "eCam",
-	tbl		=> "cams",
-	user	=> "",
-	passwd	=> "",
+    db_host	=> "",
+    db_type	=> "mysql",
+    db		=> "eCam",
+    tbl		=> "cams",
+    user	=> "",
+    passwd	=> "",
 
-	hosts	=> ['pizzabox','babel','gonzo'],
+    hosts	=> ['pizzabox','babel','gonzo'],
 
-	tmp_dir	=> "/tmp",
+    tmp_dir	=> "/tmp",
 );
 
 #----------
@@ -58,7 +58,7 @@ use vars qw(%db %cfg %sockets);
 $db{h} = DBI->connect("DBI:mysql:eCam:host","","");
 
 $db{insert} = $db{h}->prepare("
-	insert into $cfg{tbl}(id,host,timestamp,image) values(0,?,?,?)
+    insert into $cfg{tbl}(id,host,timestamp,image) values(0,?,?,?)
 ");
 
 #----------
@@ -66,20 +66,20 @@ $db{insert} = $db{h}->prepare("
 # the image grabbing, comparing, uploading loop
 
 while (1) {
-	foreach my $host (@{$cfg{hosts}}) {
-		next unless (my $socket = &connect_to_client($host));
-		warn "starting $host\n";
-		print $socket "CAMFOO HOSER U!\n";
+    foreach my $host (@{$cfg{hosts}}) {
+        next unless (my $socket = &connect_to_client($host));
+        warn "starting $host\n";
+        print $socket "CAMFOO HOSER U!\n";
 
-		$socket->autoflush(1);
+        $socket->autoflush(1);
 
-		# read the image in
-		my $img;
-		while (<$socket>) { 
-			$img .= $_;
-		}
+        # read the image in
+        my $img;
+        while (<$socket>) { 
+            $img .= $_;
+        }
 
-		# convert img to ppm
+        # convert img to ppm
 
 #		my $djpeg_pid = open2(*PNM,*JPG,"djpeg -ppm");
 #
@@ -91,72 +91,72 @@ while (1) {
 #
 #		close(PNM);
 
-		open (DJPEG, "| djpeg -ppm > $cfg{tmp_dir}/eCam.tmp.ppm");
-			print DJPEG $img;
-		close DJPEG;
+        open (DJPEG, "| djpeg -ppm > $cfg{tmp_dir}/eCam.tmp.ppm");
+            print DJPEG $img;
+        close DJPEG;
 
-		my $ppm;
-		open (PPM, "$cfg{tmp_dir}/eCam.tmp.ppm");
-			$ppm .= $_ while (<PPM>);
-		close PPM;
-	
-		if (-e"$cfg{tmp_dir}/eCam.$host.ppm") {
-			# compare the image to determine if it has changed
-			open (ICMP, qq(/home/eric/scripts/eCam/icmp-new -i1 $cfg{tmp_dir}/eCam.$host.ppm -i2 $cfg{tmp_dir}/eCam.tmp.ppm -f "%m"|));
-				my $score = <ICMP>;
-			close ICMP;
+        my $ppm;
+        open (PPM, "$cfg{tmp_dir}/eCam.tmp.ppm");
+            $ppm .= $_ while (<PPM>);
+        close PPM;
+    
+        if (-e"$cfg{tmp_dir}/eCam.$host.ppm") {
+            # compare the image to determine if it has changed
+            open (ICMP, qq(/home/eric/scripts/eCam/icmp-new -i1 $cfg{tmp_dir}/eCam.$host.ppm -i2 $cfg{tmp_dir}/eCam.tmp.ppm -f "%m"|));
+                my $score = <ICMP>;
+            close ICMP;
 
-			warn "host: $host\tscore: $score\n";
-	
-			if ($score >= 3) {
-				warn "different image...  uploading\n";
-				&upload_image($host,$img,$ppm);
-			} else {
-				warn "too similar to upload\n";
-			}
-		} else {
-			# first image of run, or something weird happened
-			&upload_image($host,$img,$ppm);
-		}
-	}
+            warn "host: $host\tscore: $score\n";
+    
+            if ($score >= 3) {
+                warn "different image...  uploading\n";
+                &upload_image($host,$img,$ppm);
+            } else {
+                warn "too similar to upload\n";
+            }
+        } else {
+            # first image of run, or something weird happened
+            &upload_image($host,$img,$ppm);
+        }
+    }
 
-	sleep 10;
+    sleep 10;
 }
 
 #----------
 
 sub connect_to_client {
-	my $host = shift;
-	my $socket = IO::Socket::INET->new(
-		PeerAddr	=> $host,
-		PeerPort	=> 3141,
-		Proto		=> "tcp",
-		Type		=> SOCK_STREAM,
-		Timeout		=> 5,
-	);
-	return $socket;
+    my $host = shift;
+    my $socket = IO::Socket::INET->new(
+        PeerAddr	=> $host,
+        PeerPort	=> 3141,
+        Proto		=> "tcp",
+        Type		=> SOCK_STREAM,
+        Timeout		=> 5,
+    );
+    return $socket;
 }
 
 #----------
 
 sub upload_image {
-	my ($host,$img,$ppm) = @_;
+    my ($host,$img,$ppm) = @_;
 
-	open (TMP, "> $cfg{tmp_dir}/eCam.$host.ppm");
-		print TMP $ppm;
-	close TMP;
+    open (TMP, "> $cfg{tmp_dir}/eCam.$host.ppm");
+        print TMP $ppm;
+    close TMP;
 
-	# get a low priority write lock...  If this bails we're going to jetison 
-	# and forget the image
-	unless ($db{h}->do("LOCK TABLE cams LOW_PRIORITY WRITE")) {
-		warn "NNOOOOOOO!!!!! ".$db{h}->errstr."\n";
-		return;
-	}
+    # get a low priority write lock...  If this bails we're going to jetison 
+    # and forget the image
+    unless ($db{h}->do("LOCK TABLE cams LOW_PRIORITY WRITE")) {
+        warn "NNOOOOOOO!!!!! ".$db{h}->errstr."\n";
+        return;
+    }
 
-	# insert the image
-	$db{insert}->execute($host,time,$img);
+    # insert the image
+    $db{insert}->execute($host,time,$img);
 
-	$db{h}->do("UNLOCK TABLE");
+    $db{h}->do("UNLOCK TABLE");
 }
 
 #-------------#

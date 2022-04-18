@@ -56,114 +56,114 @@ This module wraps GTK to ease development.
 
 =item C<start>
 
-	$gui = ObjGTK->start();
+    $gui = ObjGTK->start();
 
 =cut
 
 sub start {
-	my $class = shift;
+    my $class = shift;
 
-	init Gtk;
+    init Gtk;
 
-	$class = bless ( { }, $class );
+    $class = bless ( { }, $class );
 
-	return $class;	
+    return $class;	
 }
 
 #----------
 
 sub go {
-	Gtk->main;
+    Gtk->main;
 }
 
 #----------
 
 sub create_window {
-	my $class = shift;
-	my %args = @_;
+    my $class = shift;
+    my %args = @_;
 
-	$class->{$args{name}} = new Gtk::Window($args{type});
-	$class->{$args{name}}->set_title($args{title});
+    $class->{$args{name}} = new Gtk::Window($args{type});
+    $class->{$args{name}}->set_title($args{title});
 
-	$class->{$args{name}}->set_default_size(@{$args{d_size}}) if (
-		$args{d_size}
-	);
+    $class->{$args{name}}->set_default_size(@{$args{d_size}}) if (
+        $args{d_size}
+    );
 
-	$class->{$args{name}}->signal_connect("destroy", $args{destroy}) if (
-		$args{destroy}
-	);
+    $class->{$args{name}}->signal_connect("destroy", $args{destroy}) if (
+        $args{destroy}
+    );
 
-	# now the fun begins
+    # now the fun begins
 
-	$class->build($class->{$args{name}},$class->{$args{name}},$args{contents});
+    $class->build($class->{$args{name}},$class->{$args{name}},$args{contents});
 
 }
 
 #----------
 
 sub build {
-	my ($class,$parent,$tparent,$ref) = @_;
-	foreach my $child (@{$ref}) {
-		my $target = "Gtk::$$child[1]";
+    my ($class,$parent,$tparent,$ref) = @_;
+    foreach my $child (@{$ref}) {
+        my $target = "Gtk::$$child[1]";
 
-		$tparent->{$$child[0]} = new $target(@{$$child[2]});
-		$parent->add($tparent->{$$child[0]});
-		$tparent->{$$child[0]}->show;
+        $tparent->{$$child[0]} = new $target(@{$$child[2]});
+        $parent->add($tparent->{$$child[0]});
+        $tparent->{$$child[0]}->show;
 
-		if ($$child[3]) {
-			$class->build(
-				$tparent->{$$child[0]},
-				($$child[0]) ? $tparent->{$$child[0]} : $tparent,
-				$$child[3]
-			);
-		}
-	}
+        if ($$child[3]) {
+            $class->build(
+                $tparent->{$$child[0]},
+                ($$child[0]) ? $tparent->{$$child[0]} : $tparent,
+                $$child[3]
+            );
+        }
+    }
 }
 
 #----------
 
 sub button_bar {
-	my $class = shift;
-	my $widget = shift;
-	my @buttons = @_;
+    my $class = shift;
+    my $widget = shift;
+    my @buttons = @_;
     
-	foreach my $button (@buttons) {
-		my $b = Gtk::Button->new($$button[0]);
-		$b->signal_connect("clicked",$$button[1]) if ($$button[1]);
-		$b->show;
-		$widget->pack_start($b,0,0,0);
-	}
+    foreach my $button (@buttons) {
+        my $b = Gtk::Button->new($$button[0]);
+        $b->signal_connect("clicked",$$button[1]) if ($$button[1]);
+        $b->show;
+        $widget->pack_start($b,0,0,0);
+    }
 }
 
 #----------
 
 sub create_radiogroup {
-	my $class = shift;
-	my $widget = shift;
-	my @buttons = @_;
-	my $m;
+    my $class = shift;
+    my $widget = shift;
+    my @buttons = @_;
+    my $m;
 
-	foreach my $b (@buttons) {
-		$widget->{$$b[0]} = Gtk::RadioButton->new(($m)?($$b[1],$$m):$$b[1]);
-		$m = \$widget->{$$b[0]};
-		$widget->add($widget->{$$b[0]});
-		$widget->{$$b[0]}->show;
-	}
+    foreach my $b (@buttons) {
+        $widget->{$$b[0]} = Gtk::RadioButton->new(($m)?($$b[1],$$m):$$b[1]);
+        $m = \$widget->{$$b[0]};
+        $widget->add($widget->{$$b[0]});
+        $widget->{$$b[0]}->show;
+    }
 }
 
 #----------
 
 sub menu {
-	my $class = shift;
-	my $widget = shift;
-	my @items = @_;
+    my $class = shift;
+    my $widget = shift;
+    my @items = @_;
 
-	foreach my $item (@items) {
-		my $i = Gtk::MenuItem->new($$item[0]);
-		$i->signal_connect("activate",$$item[1],$$item[2]);
-		$i->show;
-		$widget->append($i);
-	}
+    foreach my $item (@items) {
+        my $i = Gtk::MenuItem->new($$item[0]);
+        $i->signal_connect("activate",$$item[1],$$item[2]);
+        $i->show;
+        $widget->append($i);
+    }
 }
 
 #----------

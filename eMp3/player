@@ -34,10 +34,10 @@ use MPEG::MP3Info;
 use XaudioPlayer;
 
 %options = (
-	create      => 0,
-	exclusive   => 0,
-	mode        => 0644,
-	destroy     => 0,
+    create      => 0,
+    exclusive   => 0,
+    mode        => 0644,
+    destroy     => 0,
 );
 $handle = tie (%shared, 'IPC::Shareable', 'eMp3', { %options }) or die $!;
 
@@ -54,77 +54,77 @@ $player = "/home/eric/scripts/eMp3/player";
 $shared{player_pid} = $$;
 
 if ($shared{current_song}) {
-	&play_song($shared{current_song});
+    &play_song($shared{current_song});
 } else {
-	warn "crazy freak...  there's nothing in the song queue...\n";
+    warn "crazy freak...  there's nothing in the song queue...\n";
 }
 
 #----------
 
 sub play_song {
-	my $song = shift;
+    my $song = shift;
 #	&log_song($song);
-	$xplayer->Open($song);
-	$xplayer->Play;
+    $xplayer->Open($song);
+    $xplayer->Play;
 
-	while(my $message = $xplayer->GetMessage) {
-		&handle_message($message);
-	}
+    while(my $message = $xplayer->GetMessage) {
+        &handle_message($message);
+    }
 }
 
 #----------
 
 sub handle_message {
-	$_ = shift;
+    $_ = shift;
 
-	if (/EOF/) {
-		$xplayer->Exit;
-	} elsif (/MSG notify exited/) {
-		exit;
-	} elsif (/MSG notify player state/) {
-		($shared{player_state}) = /MSG notify player state \[([^\]]+)\]\n/;
-	} elsif (/MSG notify timecode/) {
-		($shared{current_file_time}) = /MSG notify timecode \[([^\]]+)\]\n/;
-	}
+    if (/EOF/) {
+        $xplayer->Exit;
+    } elsif (/MSG notify exited/) {
+        exit;
+    } elsif (/MSG notify player state/) {
+        ($shared{player_state}) = /MSG notify player state \[([^\]]+)\]\n/;
+    } elsif (/MSG notify timecode/) {
+        ($shared{current_file_time}) = /MSG notify timecode \[([^\]]+)\]\n/;
+    }
 }
 
 #----------
 
 sub log_song {
-	my ($song,$warning) = @_;
-	my $time 			= time;
+    my ($song,$warning) = @_;
+    my $time 			= time;
 
-	my $tag = get_mp3tag($song) unless ($warning);
+    my $tag = get_mp3tag($song) unless ($warning);
 
-	if ($tag) {
-		$song = "$tag->{ARTIST} : $tag->{TITLE}";
-	} else {
-		$song =~ s!/audio/mp3/!!g;
-	}
+    if ($tag) {
+        $song = "$tag->{ARTIST} : $tag->{TITLE}";
+    } else {
+        $song =~ s!/audio/mp3/!!g;
+    }
 
-	$song =~ s/\'/\\'/g;
-	unless ($e{options}{disable_log}) {
-		$db->do("
-			insert into eMp3log(timestamp,song) values($time,'$song')
-		");
-	}
+    $song =~ s/\'/\\'/g;
+    unless ($e{options}{disable_log}) {
+        $db->do("
+            insert into eMp3log(timestamp,song) values($time,'$song')
+        ");
+    }
 }
 
 
 #----------
 
 sub surface_and_breath {
-	if ($shared{player_message} eq"restart") {
-		$xplayer->seek(0,400);
-	} elsif ($shared{player_message} eq"seek") {
-	} elsif ($shared{player_message} eq"pause") {
-		$xplayer->pause;
-		local $SIG{ALRM} = sub {$xplayer->Play};
-		sleep;
-	} elsif ($shared{player_message} eq"next") {
-		$xplayer->Exit;
-		$shared{player_pid} = '';
-		exit;
-	}
-	$shared{player_message} = '';
+    if ($shared{player_message} eq"restart") {
+        $xplayer->seek(0,400);
+    } elsif ($shared{player_message} eq"seek") {
+    } elsif ($shared{player_message} eq"pause") {
+        $xplayer->pause;
+        local $SIG{ALRM} = sub {$xplayer->Play};
+        sleep;
+    } elsif ($shared{player_message} eq"next") {
+        $xplayer->Exit;
+        $shared{player_pid} = '';
+        exit;
+    }
+    $shared{player_message} = '';
 }

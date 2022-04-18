@@ -3,27 +3,27 @@
 my $file = shift;
 
 open (NAMES, "$file");
-	@names = <NAMES>;
+    @names = <NAMES>;
 close NAMES;
 
 %title = ('Mr.' => 1,'Mrs.'=>1,'Miss'=>1,'Ms.'=>1,'Dr.'=>1);
 
 while ($_ = shift @names) {
-	my $done_with_title;
-	my ($title,$name);
-	chop;
-	while (m/([^ ]+)/g) {
-		if ($title{$1} || $1 eq"and") {
-			warn "title: $1\n";
-		} else {
-			warn "other: $1\n";
-			$done_with_title = 1;
-		}
-		unless ($done_with_title) {
-			$title .= "$1 ";
-		} else {
-			$name .= "$1 ";
-		}
-	}
-	warn "$title\t$name\n";
+    my $done_with_title;
+    my ($title,$name);
+    chop;
+    while (m/([^ ]+)/g) {
+        if ($title{$1} || $1 eq"and") {
+            warn "title: $1\n";
+        } else {
+            warn "other: $1\n";
+            $done_with_title = 1;
+        }
+        unless ($done_with_title) {
+            $title .= "$1 ";
+        } else {
+            $name .= "$1 ";
+        }
+    }
+    warn "$title\t$name\n";
 }

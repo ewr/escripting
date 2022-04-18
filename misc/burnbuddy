@@ -3,17 +3,17 @@
 $playlist_file = shift;
 
 if (-e"$playlist_file") {
-	open (PLAYLIST,"$playlist_file") or die
-		"error: could not open '$playlist_file' : $!\n";
-	@playlist = <PLAYLIST>;
+    open (PLAYLIST,"$playlist_file") or die
+        "error: could not open '$playlist_file' : $!\n";
+    @playlist = <PLAYLIST>;
 } else {
-	die "error: file '$playlist_file' not found.\n";
+    die "error: file '$playlist_file' not found.\n";
 }
 
 while (my $song = shift(@playlist)) {
-	$song =~ s/\n//;
-	warn "\n\nburnbuddy: burning track ".$count++."\n\n";
-	`mpg123 -s "$song" | cdrecord dev=/dev/sga -audio -swab -pad -nofix -speed=4  -`;
+    $song =~ s/\n//;
+    warn "\n\nburnbuddy: burning track ".$count++."\n\n";
+    `mpg123 -s "$song" | cdrecord dev=/dev/sga -audio -swab -pad -nofix -speed=4  -`;
 }
 
 `cdrecord dev=/dev/sga -speed=4 -fix`;

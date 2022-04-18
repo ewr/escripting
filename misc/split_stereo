@@ -12,9 +12,9 @@ my $wav = Audio::Wav->new;
 my $in = $wav->read($cfg{file});
 
 $cfg{details} = {
-	channels	=> 1,
-	bits_sample	=> 16,
-	sample_rate	=> 44100,
+    channels	=> 1,
+    bits_sample	=> 16,
+    sample_rate	=> 44100,
 };
 
 my $l = $wav->write("tape".$left.".wav",$cfg{details});
@@ -22,7 +22,7 @@ my $r = $wav->write("tape".$right.".wav",$cfg{details});
 
 my $sub;
 for (my $x = 0;$x <= 4800;$x+=4) {
-	$sub .= qq(\$ld .= substr(\$d,$x,2);\$rd .= substr(\$d,$x+2,2););
+    $sub .= qq(\$ld .= substr(\$d,$x,2);\$rd .= substr(\$d,$x+2,2););
 }
 
 my $sref = eval "sub { my \$d = shift; my (\$ld,\$rd); $sub return (\$ld,\$rd);}";
@@ -30,7 +30,7 @@ warn "eval error: $@\n" if ($@);
 
 while (my $d = $in->read_raw(4800)) {
 
-	my ($ld,$rd) = &$sref($d);
+    my ($ld,$rd) = &$sref($d);
 
 #	my ($ld,$rd);
 #	for (my $x = 0;$x <= 1200;$x+=12) {
@@ -42,8 +42,8 @@ while (my $d = $in->read_raw(4800)) {
 #		$rd .= substr($d,$x+10,2);
 #	}
 
-	$l->write_raw($ld);
-	$r->write_raw($rd);
+    $l->write_raw($ld);
+    $r->write_raw($rd);
 }
 
 $l->finish;

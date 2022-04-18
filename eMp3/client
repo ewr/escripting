@@ -42,7 +42,7 @@ $handle = tie %shared,'IPC::Shareable','eMp3',{
 $SIG{INT} = \&kill_sucker;
 
 open (SERVER_PID, "/tmp/eMp3.pid");
-	$e{server_pid} = <SERVER_PID>;
+    $e{server_pid} = <SERVER_PID>;
 close SERVER_PID;
 
 print <<EOP;
@@ -59,128 +59,128 @@ Client || Server PID: $e{server_pid}
 EOP
 
 do {
-	print "eMp3> ";
-	my $input = <STDIN>;
-	chop($input);
-	&parse($input);
+    print "eMp3> ";
+    my $input = <STDIN>;
+    chop($input);
+    &parse($input);
 } while (1);
 
 
 #----------
 
 sub parse {
-	$_ = shift;
-	my ($command,$options) = /([^\t]+)\t(.*)/;
-	$command = $_ unless ($command);
+    $_ = shift;
+    my ($command,$options) = /([^\t]+)\t(.*)/;
+    $command = $_ unless ($command);
 
-	if ($command eq"add_file") {
-		if (-e $options) {
-			$shared{songs} = [(@{$shared{songs}},$options)];
-		} else {
-			print "could not add to song list: $!\n";
-		}
-	} elsif ($command eq"add_dir") {
-		if (-d $options) {
-			opendir(DIR, $options);
-				my @files = readdir DIR;
-				while (my $file = shift(@files)) {
-					if (-d $file) {
-						warn "skipping dir: $file\n";
-					} else {
-						$shared{songs} = [(@{$shared{songs}},"$options/$file")];
-					}
-				}
-			closedir DIR;
-		} else {
-			print "$options is not a directory\n";
-		}
-	} elsif ($command eq"list") {
-		my @songs = @{$shared{songs}};
-		my $num = '0';
-		while (my $song = shift(@songs)) {
-			print "$num -- $song\n";
-			$num++;
-		}
-	} elsif ($command eq"randomize") {
-		my @songs = @{$shared{songs}};
-		my $i;
-		for ($i = @songs; --$i;) {
-			my $j = int rand ($i+1);
-			next if $i == $j;
-			@songs[$i,$j] = @songs[$j,$i];
-		}
+    if ($command eq"add_file") {
+        if (-e $options) {
+            $shared{songs} = [(@{$shared{songs}},$options)];
+        } else {
+            print "could not add to song list: $!\n";
+        }
+    } elsif ($command eq"add_dir") {
+        if (-d $options) {
+            opendir(DIR, $options);
+                my @files = readdir DIR;
+                while (my $file = shift(@files)) {
+                    if (-d $file) {
+                        warn "skipping dir: $file\n";
+                    } else {
+                        $shared{songs} = [(@{$shared{songs}},"$options/$file")];
+                    }
+                }
+            closedir DIR;
+        } else {
+            print "$options is not a directory\n";
+        }
+    } elsif ($command eq"list") {
+        my @songs = @{$shared{songs}};
+        my $num = '0';
+        while (my $song = shift(@songs)) {
+            print "$num -- $song\n";
+            $num++;
+        }
+    } elsif ($command eq"randomize") {
+        my @songs = @{$shared{songs}};
+        my $i;
+        for ($i = @songs; --$i;) {
+            my $j = int rand ($i+1);
+            next if $i == $j;
+            @songs[$i,$j] = @songs[$j,$i];
+        }
 
-		$shared{songs} = [(@songs)];
-	} elsif ($command eq"drop") {
-		my @songs = @{$shared{songs}};
-			splice(@songs,$options,1);
-		$shared{songs} = [(@songs)];
-	} elsif ($command eq"switch") {
-		my ($a,$b) = split(",",$options);
-		my @songs = @{$shared{songs}};
-			@songs[$a,$b] = @songs[$b,$a];
-		$shared{songs} = [(@songs)];
-	} elsif ($command eq"next") {
-		$shared{player_message} = "next";
-		kill 12, $shared{player_pid};
-	} elsif ($command eq"seek") {
-	} elsif ($command eq"pause") {
-		if ($shared{player_state} ne"PAUSED") {
-			$shared{player_message} = "pause";
-			kill 12, $shared{player_pid};
-		} else {
-			kill 14, $shared{player_pid};
-		}
-	} elsif ($command eq"rewind") {
-		$shared{player_message} = "restart";
-		kill 12, $shared{player_pid};
-	} elsif ($command eq"info") {
-		my $next = ($shared{current_num}+1);
-		print <<EOP;
+        $shared{songs} = [(@songs)];
+    } elsif ($command eq"drop") {
+        my @songs = @{$shared{songs}};
+            splice(@songs,$options,1);
+        $shared{songs} = [(@songs)];
+    } elsif ($command eq"switch") {
+        my ($a,$b) = split(",",$options);
+        my @songs = @{$shared{songs}};
+            @songs[$a,$b] = @songs[$b,$a];
+        $shared{songs} = [(@songs)];
+    } elsif ($command eq"next") {
+        $shared{player_message} = "next";
+        kill 12, $shared{player_pid};
+    } elsif ($command eq"seek") {
+    } elsif ($command eq"pause") {
+        if ($shared{player_state} ne"PAUSED") {
+            $shared{player_message} = "pause";
+            kill 12, $shared{player_pid};
+        } else {
+            kill 14, $shared{player_pid};
+        }
+    } elsif ($command eq"rewind") {
+        $shared{player_message} = "restart";
+        kill 12, $shared{player_pid};
+    } elsif ($command eq"info") {
+        my $next = ($shared{current_num}+1);
+        print <<EOP;
 current song: \t$shared{current_num} -- $shared{current_file_time}
   $shared{current_song}
 next song:\t$next
   ${$shared{songs}}[$next]
 EOP
-	} elsif ($command eq"jump") {
-		if ($shared{player_pid}) {
-			$shared{current_num} = ($options - 1);
-			$shared{player_message} = "next";
-			kill 12, $shared{player_pid};
-		} else {
-			$shared{control} = "play";
-			$shared{current_num} = $options;
-			&alert_server;
-		}
-	} elsif ($command eq"stop") {
-		if ($shared{player_pid}) {
-			my $current = $shared{current_num};
-			$shared{current_num} = (@{$shared{songs}}+1);
-			$shared{player_message} = "next";
-			kill 12, $shared{player_pid};
-			sleep 1;
-			$shared{current_num} = $current;
-		} else {
-			print "no player running.\n";
-		}
-	} elsif ($command eq"play") {
-		$shared{control} = "play";
-		$shared{current_num} = 0 if ($shared{current_num} > @{$shared{songs}});
-		&alert_server;
-	} elsif ($command eq"exit") {
-		print "eMp3 client exiting.\n\n";
-		exit;
-	} elsif ($command eq"shutdown") {
-		
-	} else {
-		print "command '$command' not recognized.\n";
-	}
+    } elsif ($command eq"jump") {
+        if ($shared{player_pid}) {
+            $shared{current_num} = ($options - 1);
+            $shared{player_message} = "next";
+            kill 12, $shared{player_pid};
+        } else {
+            $shared{control} = "play";
+            $shared{current_num} = $options;
+            &alert_server;
+        }
+    } elsif ($command eq"stop") {
+        if ($shared{player_pid}) {
+            my $current = $shared{current_num};
+            $shared{current_num} = (@{$shared{songs}}+1);
+            $shared{player_message} = "next";
+            kill 12, $shared{player_pid};
+            sleep 1;
+            $shared{current_num} = $current;
+        } else {
+            print "no player running.\n";
+        }
+    } elsif ($command eq"play") {
+        $shared{control} = "play";
+        $shared{current_num} = 0 if ($shared{current_num} > @{$shared{songs}});
+        &alert_server;
+    } elsif ($command eq"exit") {
+        print "eMp3 client exiting.\n\n";
+        exit;
+    } elsif ($command eq"shutdown") {
+        
+    } else {
+        print "command '$command' not recognized.\n";
+    }
 }
 
 #----------
 
 sub alert_server {
-	kill 14, $e{server_pid};
+    kill 14, $e{server_pid};
 }
 
 #----------

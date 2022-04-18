@@ -71,7 +71,7 @@ management system.
 
 =item B<start>
 
-	$core = eGold::core->start("script");
+    $core = eGold::core->start("script");
 
 This function initializes this package, loads the configuration file 
 into memory, and returns a blessed reference.
@@ -79,62 +79,62 @@ into memory, and returns a blessed reference.
 =cut
 
 sub start {
-	my $class = shift;
+    my $class = shift;
 
-	# load the config file
-	require "cfg.main";
-	%cfg = &cfg::cfg;
-	$cfg{script} = shift;
+    # load the config file
+    require "cfg.main";
+    %cfg = &cfg::cfg;
+    $cfg{script} = shift;
 
-	$db = DBI->connect(
-		"DBI:mysql:$cfg{db}{db}:$cfg{db}{host}",$cfg{db}{user},$cfg{db}{pass}
-	);
+    $db = DBI->connect(
+        "DBI:mysql:$cfg{db}{db}:$cfg{db}{host}",$cfg{db}{user},$cfg{db}{pass}
+    );
 
-	if (-e $cfg{cache}.$cfg{script}) {
-		my $s_ref = retrieve($cfg{cache}.$cfg{script});
-		%stored = %{$s_ref};
-	} else {
-		%stored = ();
-	}
+    if (-e $cfg{cache}.$cfg{script}) {
+        my $s_ref = retrieve($cfg{cache}.$cfg{script});
+        %stored = %{$s_ref};
+    } else {
+        %stored = ();
+    }
 
-	return bless ( { }, $class );
+    return bless ( { }, $class );
 }
 
 #----------
 
 =item B<save_memory>
 
-	$core->save_memory;
+    $core->save_memory;
 
 Save stored memory to a file.
 
 =cut
 
 sub save_memory {
-	my $class 	= shift;
-	Storable::store(\%stored,$cfg{cache}.$cfg{script});
+    my $class 	= shift;
+    Storable::store(\%stored,$cfg{cache}.$cfg{script});
 }
 
 #----------
 
 =item B<store>
 
-	$core->store('key','value');
+    $core->store('key','value');
 
 Add a key/value to the stored hash.
 
 =cut
 
 sub store {
-	my $class = shift;
-	$stored{$_[0]} = $_[1];
+    my $class = shift;
+    $stored{$_[0]} = $_[1];
 }
 
 #----------
 
 =item B<get_template>
 
-	my $html = $core->get_template($fully_expanded_file);
+    my $html = $core->get_template($fully_expanded_file);
 
 Load a template file.  Feed get_template a fully expanded template name 
 (story.locale.topic) and it'll try to load story.locale.topic.html, then 
@@ -143,37 +143,37 @@ story.locale.html, then story.html before failing.
 =cut
 
 sub get_template {
-	my ($class,$template) = @_;
+    my ($class,$template) = @_;
 
-	$template =~ s!\.$!!;
+    $template =~ s!\.$!!;
 
-	sub try_template {
-		return unless (${$_[0]});
-		if (!-e $cfg{template_dir}.${$_[0]}.".html") {
-			${$_[0]} =~ s!\.?[^\.]+$!!i;
-			&try_template;
-		}
-	}
+    sub try_template {
+        return unless (${$_[0]});
+        if (!-e $cfg{template_dir}.${$_[0]}.".html") {
+            ${$_[0]} =~ s!\.?[^\.]+$!!i;
+            &try_template;
+        }
+    }
 
-	&try_template(\$template);
-	return unless ($template);
+    &try_template(\$template);
+    return unless ($template);
 
-	open(FILE, $cfg{template_dir}.$template.".html") 
-		or die "can't open template '".$cfg{template_dir}.$template.".html': $!\n";
+    open(FILE, $cfg{template_dir}.$template.".html") 
+        or die "can't open template '".$cfg{template_dir}.$template.".html': $!\n";
 
-	my $html;
-	while (<FILE>) { $html .= $_; }
-	return $html;
+    my $html;
+    while (<FILE>) { $html .= $_; }
+    return $html;
 }
 
 #----------
 
 =item B<write_file>
 
-	$core->write_file(
-		name	=> "name",
-		data	=> $data,
-	);
+    $core->write_file(
+        name	=> "name",
+        data	=> $data,
+    );
 
 Checksums the file and compares it to the stored value to see if the file has been 
 altered before writing it.  Also compares the checksum with the checksum of $data 
@@ -182,42 +182,42 @@ to see if you're actually feeding it new data that it should upload.
 =cut
 
 sub write_file {
-	my $class 	= shift;
-	my %args 	= @_;
+    my $class 	= shift;
+    my %args 	= @_;
 
-	my $name = $class->clean_up($args{name});
+    my $name = $class->clean_up($args{name});
 
-	my ($dir) = $name =~ m!(.*)/[^/]+$!;
+    my ($dir) = $name =~ m!(.*)/[^/]+$!;
 
-	if (-e $cfg{output_dir}.$name) {
-		if ($class->different($name)) {
+    if (-e $cfg{output_dir}.$name) {
+        if ($class->different($name)) {
 #			$class->email(
 #				To		=> $cfg{admin_email},
 #				Subject	=> "File Conflict",
 #				Body	=> qq(),
 #			);
-			$name =~ s!\.shtml$!\.new\.shtml!;
-		} else {
-			return if (crc32($args{data}) == $stored{$name});
-		}
-	}
+            $name =~ s!\.shtml$!\.new\.shtml!;
+        } else {
+            return if (crc32($args{data}) == $stored{$name});
+        }
+    }
 
-	warn "outfile being written: $name\n";
+    warn "outfile being written: $name\n";
 
-	$class->mkdir($dir);
+    $class->mkdir($dir);
 
-	$stored{$name} = crc32($args{data});
-	warn "stored crc: $stored{$name}\t$name\n";
+    $stored{$name} = crc32($args{data});
+    warn "stored crc: $stored{$name}\t$name\n";
 
 
-	# this makes sure it gets rsync'ed later
-	push @files, $cfg{output_dir}.$name;
+    # this makes sure it gets rsync'ed later
+    push @files, $cfg{output_dir}.$name;
 
-	open (FILE, ">".$cfg{output_dir}.$name) 
-		or die "Could not write '$name': $!\n";
+    open (FILE, ">".$cfg{output_dir}.$name) 
+        or die "Could not write '$name': $!\n";
 
-	print FILE $args{data};
-	close FILE;
+    print FILE $args{data};
+    close FILE;
 
 }
 
@@ -225,18 +225,18 @@ sub write_file {
 
 =item B<email>
 
-	$core->email(
-		To		=> "whoever",
-		Subject	=> "Whatever",
-		Body	=> "hey",
-	);
+    $core->email(
+        To		=> "whoever",
+        Subject	=> "Whatever",
+        Body	=> "hey",
+    );
 
 Send an email.
 
 =cut
 
 sub email {
-	my $class = shift;
+    my $class = shift;
 
 #	sendmail(
 #		From	=> $cfg{admin_email},
@@ -248,28 +248,28 @@ sub email {
 
 =item B<clean_up>
 
-	my $result = $core->clean_up($var);
+    my $result = $core->clean_up($var);
 
 Clean up a value, most likely for use as a filename.  
 
 =cut
 
 sub clean_up {
-	my ($class) = shift;
+    my ($class) = shift;
 
-	$_ = shift;
-		s!\s!_!gi;
-		s![^\w\d\./_-]!!gi;
-	return $_;
+    $_ = shift;
+        s!\s!_!gi;
+        s![^\w\d\./_-]!!gi;
+    return $_;
 }
 
 #----------
 
 =item B<different>
 
-	if ($core->different("file")) {
-		#do something
-	} else { #whatever }
+    if ($core->different("file")) {
+        #do something
+    } else { #whatever }
 
 Compare the stored checksum of file with a newly computed checksum for file to 
 see if someone else has edited it.
@@ -277,137 +277,137 @@ see if someone else has edited it.
 =cut
 
 sub different {
-	my ($class,$file) = @_;
+    my ($class,$file) = @_;
 
-	open (FILE, $cfg{output_dir}.$file);
-		my $f_crc = crc32(*FILE);
-	close FILE;
+    open (FILE, $cfg{output_dir}.$file);
+        my $f_crc = crc32(*FILE);
+    close FILE;
 
-	($stored{$file} == $f_crc) ? 0 : 1;
+    ($stored{$file} == $f_crc) ? 0 : 1;
 }
 
 #----------
 
 =item B<mkdir>
 
-	$core->mkdir("my/sub/dir");
+    $core->mkdir("my/sub/dir");
 
 Create a directory and all parent directories which don't already exist.
 
 =cut
 
 sub mkdir {
-	my $class = shift;
-	my $dir = shift;
+    my $class = shift;
+    my $dir = shift;
 
-	return if (-d $cfg{output_dir}.$dir);
+    return if (-d $cfg{output_dir}.$dir);
 
-	my ($parent) = $dir =~ m!^(.*)/[^/]+$!;
-	if (!-d $cfg{output_dir}.$parent && $parent) {
-		$class->mkdir($parent);
-	}
+    my ($parent) = $dir =~ m!^(.*)/[^/]+$!;
+    if (!-d $cfg{output_dir}.$parent && $parent) {
+        $class->mkdir($parent);
+    }
 
-	mkdir $cfg{output_dir}.$dir,0755 or die "couldn't make $dir: $!\n";
+    mkdir $cfg{output_dir}.$dir,0755 or die "couldn't make $dir: $!\n";
 }
 
 #----------
 
 =item B<thumbnail>
 
-	$core->thumbnail(
-		image	=> "img.jpg",
-		thumb	=> "thumbnail.jpg",
-		width	=> "max_width",
-		height	=> "max_height",
-	);
+    $core->thumbnail(
+        image	=> "img.jpg",
+        thumb	=> "thumbnail.jpg",
+        width	=> "max_width",
+        height	=> "max_height",
+    );
 
 Take a full sized image file and generate a thumbnail out of it.
 
 =cut
 
 sub thumbnail {
-	my $class = shift;
-	my %args = @_;
+    my $class = shift;
+    my %args = @_;
 
-	my $im = Image::Magick->new;
-	$im->Read($cfg{output_dir}.$args{image});
+    my $im = Image::Magick->new;
+    $im->Read($cfg{output_dir}.$args{image});
 
-	my ($x,$y) = $im->Get('width','height');
-	
-	if ($args{width} && ($args{width} < $x)) {
-		my $percent = ($args{width} / $x);
-		$x = sprintf("%1d",($x * $percent));
-		$y = sprintf("%1d",($y * $percent));
-	}
+    my ($x,$y) = $im->Get('width','height');
+    
+    if ($args{width} && ($args{width} < $x)) {
+        my $percent = ($args{width} / $x);
+        $x = sprintf("%1d",($x * $percent));
+        $y = sprintf("%1d",($y * $percent));
+    }
 
-	if ($args{height} && ($args{height} < $y)) {
-		my $percent = ($args{height} / $y);
-		$x = sprintf("%1d",($x * $percent));
-		$y = sprintf("%1d",($y * $percent));
-	}
+    if ($args{height} && ($args{height} < $y)) {
+        my $percent = ($args{height} / $y);
+        $x = sprintf("%1d",($x * $percent));
+        $y = sprintf("%1d",($y * $percent));
+    }
 
-	$im->Resize(
-		width	=> $x,
-		height	=> $y,
-	);
+    $im->Resize(
+        width	=> $x,
+        height	=> $y,
+    );
 
-	if ($args{letterbox}) {
-		my $foo = new Image::Magick;
-		$foo->Set(
-			size	=> $args{width}."x".$args{height}
-		);
-		$foo->ReadImage('xc:white');
-		my ($off_x,$off_y) = ('0','0');
-		$off_x = (($args{width}-$x)/2) if ($x < $args{width});
-		$off_y = (($args{height}-$y)/2) if ($y < $args{height});
+    if ($args{letterbox}) {
+        my $foo = new Image::Magick;
+        $foo->Set(
+            size	=> $args{width}."x".$args{height}
+        );
+        $foo->ReadImage('xc:white');
+        my ($off_x,$off_y) = ('0','0');
+        $off_x = (($args{width}-$x)/2) if ($x < $args{width});
+        $off_y = (($args{height}-$y)/2) if ($y < $args{height});
 
-		warn "off_x: $off_x\toff_y: $off_y\n";
+        warn "off_x: $off_x\toff_y: $off_y\n";
 
-		$foo->Composite(
-			image		=> $im,
-			compose		=> 'over',
-			geometry	=> "+".$off_x."+".$off_y,
-		);
+        $foo->Composite(
+            image		=> $im,
+            compose		=> 'over',
+            geometry	=> "+".$off_x."+".$off_y,
+        );
 
-		$foo->Write($cfg{output_dir}.$args{thumb});
-	} else {
-		$im->Write($cfg{output_dir}.$args{thumb});
-	}
-	
-	open (THUMB, $cfg{output_dir}.$args{thumb});
-		my $t_crc = crc32(*THUMB);
-	close THUMB;
+        $foo->Write($cfg{output_dir}.$args{thumb});
+    } else {
+        $im->Write($cfg{output_dir}.$args{thumb});
+    }
+    
+    open (THUMB, $cfg{output_dir}.$args{thumb});
+        my $t_crc = crc32(*THUMB);
+    close THUMB;
 
-	return if ($t_crc == $stored{$args{thumb}});
-	$stored{$args{thumb}} = $t_crc;
+    return if ($t_crc == $stored{$args{thumb}});
+    $stored{$args{thumb}} = $t_crc;
 }
 
 #----------
 
 =item B<upload>
 
-	$core->upload(@files);
+    $core->upload(@files);
 
 Upload the files found in @files.
 
 =cut
 
 sub upload {
-	my $class = shift;
-	my @files = @_;
+    my $class = shift;
+    my @files = @_;
 
-	warn "uploading: @files\n";
+    warn "uploading: @files\n";
 
-	my $rsync = File::Rsync->new(
-		rsh			=> "/usr/local/bin/ssh",
-		perms		=> 1,
-		links		=> 1,
-		recursive	=> 1,
-		dest		=> $cfg{rsync}{host}.":".$cfg{rsync}{dir},
-		src			=> $cfg{output_dir},
-	);
+    my $rsync = File::Rsync->new(
+        rsh			=> "/usr/local/bin/ssh",
+        perms		=> 1,
+        links		=> 1,
+        recursive	=> 1,
+        dest		=> $cfg{rsync}{host}.":".$cfg{rsync}{dir},
+        src			=> $cfg{output_dir},
+    );
 
-	$rsync->exec or die "couldn't rsync: ".$rsync->err."\n";
+    $rsync->exec or die "couldn't rsync: ".$rsync->err."\n";
 
 }
 

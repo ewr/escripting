@@ -38,24 +38,24 @@
 use IO::Socket;
 
 my $server = IO::Socket::INET->new(
-	LocalPort	=> 3141,
-	Type		=> SOCK_STREAM,
-	Listen		=> 10,
-	Reuse		=> 1,
+    LocalPort	=> 3141,
+    Type		=> SOCK_STREAM,
+    Listen		=> 10,
+    Reuse		=> 1,
 );
 
 
 while (my $socket = $server->accept) {
-	`vidtomem -f temp -s320x240 -z1/2`;
-	`imgcopy -fJFIF temp-00000.rgb temp.jpg`;
+    `vidtomem -f temp -s320x240 -z1/2`;
+    `imgcopy -fJFIF temp-00000.rgb temp.jpg`;
 
-	my $data;
-	open (IMG, "temp.jpg");
-		while (<IMG>) { $data .= $_; }
-	close IMG;
+    my $data;
+    open (IMG, "temp.jpg");
+        while (<IMG>) { $data .= $_; }
+    close IMG;
 
-	print $socket $data;
-	$socket->close;
+    print $socket $data;
+    $socket->close;
 }
 
 

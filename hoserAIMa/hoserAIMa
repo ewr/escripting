@@ -18,13 +18,13 @@ use vars qw(%cfg $conn $aim %mem);
 #--------------------#
 
 %cfg = (
-	buddies => {
-		# (screen name)   => 1,
-	},
-	info    => qq(
-		I am hoserAIMa.  Bow down.<br>
-		My homepage is http://escripting.com/hoserAIMa/
-	),
+    buddies => {
+        # (screen name)   => 1,
+    },
+    info    => qq(
+        I am hoserAIMa.  Bow down.<br>
+        My homepage is http://escripting.com/hoserAIMa/
+    ),
 );
 
 ($cfg{user},$cfg{pass}) = (shift,shift);
@@ -39,8 +39,8 @@ $aim = new Net::AIM;
 print "Creating connection to AIM server...\n";
 
 $aim->newconn(
-	Screenname => $cfg{user},
-	Password => $cfg{pass}
+    Screenname => $cfg{user},
+    Password => $cfg{pass}
 ) or die "server: Can't connect to AIM server.\n";
 
 my $aim_conn = $aim->getconn();
@@ -72,87 +72,87 @@ $aim->start;
 
 
 sub make_response_for {
-	my ($nick,$msg) = @_;
+    my ($nick,$msg) = @_;
 
-	my @modes = ('psychologist');#,'zippy_quoter','dissociator');
+    my @modes = ('psychologist');#,'zippy_quoter','dissociator');
 
-	# see if there's already a defined mode for this user
-	if ($mem{$nick}{mode} && (time - $mem{$nick}{mode_ts} < 30)) {
-		# use the existing mode
-	} else {
-		# pick a random mode
-		my $mode = $modes[ rand scalar @modes ];
-		$mem{$nick}{mode} = $mode;
-		$mem{$nick}{mode_ts} = time;
-		warn "--- $nick is going to $mode mode ---\n";
-	}
+    # see if there's already a defined mode for this user
+    if ($mem{$nick}{mode} && (time - $mem{$nick}{mode_ts} < 30)) {
+        # use the existing mode
+    } else {
+        # pick a random mode
+        my $mode = $modes[ rand scalar @modes ];
+        $mem{$nick}{mode} = $mode;
+        $mem{$nick}{mode_ts} = time;
+        warn "--- $nick is going to $mode mode ---\n";
+    }
 
-	my $mode = $mem{$nick}{mode};
+    my $mode = $mem{$nick}{mode};
 
-	my $response = &$mode($nick,$msg);
+    my $response = &$mode($nick,$msg);
 
-	warn "sent $nick: $response\n";
+    warn "sent $nick: $response\n";
 
-	return $response;
+    return $response;
 }
 
 #----------
 
 sub psychologist {
-	my ($nick,$msg) = @_;
-	unless (${$mem{$nick}{eliza}}) {
-		${$mem{$nick}{eliza}} = new Chatbot::Eliza;
-		${$mem{$nick}{eliza}}->name("Hoser");
-	}
+    my ($nick,$msg) = @_;
+    unless (${$mem{$nick}{eliza}}) {
+        ${$mem{$nick}{eliza}} = new Chatbot::Eliza;
+        ${$mem{$nick}{eliza}}->name("Hoser");
+    }
 
-	$msg =~ s/<[^>]+>//g;
+    $msg =~ s/<[^>]+>//g;
 
-	my $response = ${$mem{$nick}{eliza}}->transform($msg);
+    my $response = ${$mem{$nick}{eliza}}->transform($msg);
 
-	return $response;
+    return $response;
 }
 
 #----------
 
 sub zippy_quoter {
-	# we ignore input
-	open (ZIPPY, "/usr/share/games/fortunes/zippy") or die "zippy doh: $!";
-		local $/ = "%\n";
-		my @zippy = <ZIPPY>;
-	close ZIPPY;
+    # we ignore input
+    open (ZIPPY, "/usr/share/games/fortunes/zippy") or die "zippy doh: $!";
+        local $/ = "%\n";
+        my @zippy = <ZIPPY>;
+    close ZIPPY;
 
-	my $quote = $zippy[ rand scalar @zippy ];
-	$quote =~ s/\n/ /g;
-	$quote =~ s/%//g;
-	return $quote;
+    my $quote = $zippy[ rand scalar @zippy ];
+    $quote =~ s/\n/ /g;
+    $quote =~ s/%//g;
+    return $quote;
 }
 
 #----------
 
 sub dissociator {
-	open (ZIPPY, "/usr/share/games/fortunes/fortunes") or die "wisdom doh: $!";
-		local $/ = "%\n";
-		my @zippy = <ZIPPY>;
-	close ZIPPY;
+    open (ZIPPY, "/usr/share/games/fortunes/fortunes") or die "wisdom doh: $!";
+        local $/ = "%\n";
+        my @zippy = <ZIPPY>;
+    close ZIPPY;
 
-	my $response;
-	do {
-		my $quote = $zippy[ rand scalar @zippy ];
-		$quote =~ s/\n/ /g;
-		$quote =~ s/%//g;
+    my $response;
+    do {
+        my $quote = $zippy[ rand scalar @zippy ];
+        $quote =~ s/\n/ /g;
+        $quote =~ s/%//g;
 
-		$response = dissociate($quote,"5","15");
-	} until (length($response) < 1024);
+        $response = dissociate($quote,"5","15");
+    } until (length($response) < 1024);
 
-	return $response;	
+    return $response;	
 }
 
 #----------
 
 sub questioner {
-	my ($nick,$msg) = @_;
+    my ($nick,$msg) = @_;
 
-	return $msg."?";
+    return $msg."?";
 }
 
 
@@ -172,14 +172,14 @@ sub on_disconnect {
 # What to do when we receive an IM
 sub on_im {
     my ($self,$event,$from,$to)         = @_;
-	my $args = $event->args;
+    my $args = $event->args;
     my ($nick,$friend,$msg)   = @$args;
-	
-	my $response = &make_response_for($nick,$msg);
-	
-	sleep 1;
+    
+    my $response = &make_response_for($nick,$msg);
+    
+    sleep 1;
 
-	$self->send_im($nick,$response);
+    $self->send_im($nick,$response);
 }
 #----------
 # What to do when the bot gets the NICK command
